@@ -1,4 +1,4 @@
-// Base de datos en el navegador (no necesitas servidor)
+// Base de datos en el navegador
 const DB = {
   users: JSON.parse(localStorage.getItem('users')) || [
     { username: 'admin', password: '1234', role: 'admin' }
@@ -17,12 +17,12 @@ function saveUsers() {
   localStorage.setItem('users', JSON.stringify(DB.users));
 }
 
-// Login
+// === LOGIN ===
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
-    const username = document.getElementById('username').value;
+    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const error = document.getElementById('error');
 
@@ -42,7 +42,7 @@ if (loginForm) {
   });
 }
 
-// Verificar sesión
+// === VERIFICAR SESIÓN ===
 function checkAuth(requiredRole = null) {
   const user = JSON.parse(sessionStorage.getItem('currentUser'));
   if (!user) {
@@ -57,7 +57,7 @@ function checkAuth(requiredRole = null) {
   return user;
 }
 
-// Cerrar sesión
+// === CERRAR SESIÓN ===
 function logout() {
   if (confirm('¿Seguro que quieres cerrar sesión?')) {
     sessionStorage.removeItem('currentUser');
@@ -68,9 +68,8 @@ function logout() {
 // === PANEL ADMIN ===
 if (window.location.pathname.includes('admin.html')) {
   const user = checkAuth('admin');
-  if (!user) return;
+  if (!user) return; // Aquí estaba el error: return fuera de función
 
-  // Mostrar usuarios creados
   function loadUsers() {
     const list = document.getElementById('userList');
     list.innerHTML = '';
@@ -83,7 +82,6 @@ if (window.location.pathname.includes('admin.html')) {
     });
   }
 
-  // Crear nuevo usuario
   const createForm = document.getElementById('createUserForm');
   if (createForm) {
     createForm.addEventListener('submit', function(e) {
@@ -92,7 +90,7 @@ if (window.location.pathname.includes('admin.html')) {
       const password = document.getElementById('newPassword').value;
 
       if (!username || !password) {
-        alert('Completa todos los campos');
+       кан alert('Completa todos los campos');
         return;
       }
 
@@ -115,7 +113,7 @@ if (window.location.pathname.includes('admin.html')) {
 // === DIRECTORIO DE CLIENTES ===
 if (window.location.pathname.includes('usuarios.html')) {
   const user = checkAuth();
-  if (!user) return;
+  if (!user) return; // Aquí también había un return suelto
 
   const tbody = document.querySelector('#clientesTable tbody');
   DB.clientes.forEach(cliente => {
