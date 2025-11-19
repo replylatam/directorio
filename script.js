@@ -1,4 +1,4 @@
-// Base de datos en el navegador (no necesitas servidor)
+// Base de datos en el navegador
 const DB = {
   users: JSON.parse(localStorage.getItem('users')) || [
     { username: 'admin', password: '1234', role: 'admin' }
@@ -22,7 +22,7 @@ const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
-    const username = document.getElementById('username').value;
+    const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const error = document.getElementById('error');
 
@@ -45,14 +45,8 @@ if (loginForm) {
 // Verificar sesión
 function checkAuth(requiredRole = null) {
   const user = JSON.parse(sessionStorage.getItem('currentUser'));
-  if (!user) {
+  if (!user || (requiredRole && user.role !== requiredRole)) {
     window.location.href = './index.html';
-    return null;
-  }
-  if (requiredRole && user.role !== requiredRole) {
-    alert('Acceso denegado. Solo el admin puede entrar aquí.');
-    window.location.href = './index.html';
-    return null;
   }
   return user;
 }
@@ -67,18 +61,30 @@ function logout() {
 
 // === PANEL ADMIN ===
 if (window.location.pathname.includes('admin')) {
-  const user = checkAuth('admin');
-  if (!user) return;
+  checkAuth('admin');
 
-  // Crear elemento para la lista de usuarios si no existe
+  // Crear lista y formulario si no existen
+  let container = document.querySelector('.container');
   let userList = document.getElementById('userList');
   if (!userList) {
     userList = document.createElement('ul');
     userList.id = 'userList';
-    document.querySelector('.container').insertBefore(userList, document.querySelector('table'));
+    container.insertBefore(userList, document.querySelector('table'));
   }
 
-  // Mostrar usuarios creados
+  let createForm = document.getElementById('createUserForm');
+  if (!createForm) {
+    createForm = document.createElement('form');
+    createForm.id = 'createUserForm';
+    createForm.innerHTML = `
+      <h2>Crear Nuevo Usuario</h2>
+      <input type="text" id="newUsername" placeholder="Usuario" required />
+      <input type="password" id="newPassword" placeholder="Contraseña" required />
+      <button type="submit">Crear Usuario</button>
+    `;
+    container.insertBefore(createForm, userList);
+  }
+
   function loadUsers() {
     userList.innerHTML = '';
     DB.users.forEach(u => {
@@ -90,35 +96,13 @@ if (window.location.pathname.includes('admin')) {
     });
   }
 
-  // Crear formulario para nuevo usuario si no existe
-  let createForm = document.getElementById('createUserForm');
-  if (!createForm) {
-    createForm = document.createElement('form');
-    createForm.id = 'createUserForm';
-    createForm.innerHTML = `
-      <h2>Crear Nuevo Usuario</h2>
-      <input type="text" id="newUsername" placeholder="Nuevo Usuario" required />
-      <input type="password" id="newPassword" placeholder="Contraseña" required />
-      <button type="submit">Crear Usuario</button>
-    `;
-    document.querySelector('.container').insertBefore(createForm, userList);
-  }
-
-  // Evento para crear usuario
   createForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value;
 
-    if (!username || !password) {
-      alert('Completa todos los campos');
-      return;
-    }
-
-    if (DB.users.some(u => u.username === username)) {
-      alert('Este usuario ya existe');
-      return;
-    }
+    if (!username || !password) return alert('Completa todos los campos');
+    if (DB.users.some(u => u.username === username)) return alert('Este usuario ya existe');
 
     DB.users.push({ username, password, role: 'user' });
     saveUsers();
@@ -130,10 +114,9 @@ if (window.location.pathname.includes('admin')) {
   loadUsers();
 }
 
-// === DIRECTORIO DE CLIENTES ===
+// === DIRECTORIO CLIENTES (usuarios normales) ===
 if (window.location.pathname.includes('usuarios')) {
-  const user = checkAuth();
-  if (!user) return;
+  checkAuth();
 
   const tbody = document.querySelector('#clientesTable tbody');
   DB.clientes.forEach(cliente => {
