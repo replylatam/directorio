@@ -32,9 +32,9 @@ if (loginForm) {
       sessionStorage.setItem('currentUser', JSON.stringify(user));
       error.textContent = '';
       if (user.role === 'admin') {
-        window.location.href = 'admin.html';
+        window.location.href = './admin.html';
       } else {
-        window.location.href = 'usuarios.html';
+        window.location.href = './usuarios.html';
       }
     } else {
       error.textContent = 'Usuario o contraseña incorrectos';
@@ -127,3 +127,4 @@ if (window.location.pathname.includes('usuarios.html')) {
     tbody.appendChild(tr);
   });
 }
+
