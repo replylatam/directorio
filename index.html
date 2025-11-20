@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directorio de Clientes | Login</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        /* ---------------------------------------------------- */
+        /* --- 2. CSS (Estilos) --- */
+        /* ---------------------------------------------------- */
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e9ecef;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        /* Utilidad para ocultar elementos */
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- Estilos del Login --- */
+        #login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin-top: 50px;
+        }
+
+        #login-container h2 {
+            text-align: center;
+            color: #343a40;
+            margin-bottom: 20px;
+        }
+
+        #login-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        #login-form input[type="text"],
+        #login-form input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        #login-form button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        #login-form button:hover {
+            background-color: #0056b3;
+        }
+
+        #error-message {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        /* --- Estilos del Directorio --- */
+        #directorio-container {
+            width: 90%;
+            max-width: 1200px;
+            margin-top: 20px;
+        }
+
+        #directorio-container h1 {
+            color: #343a40;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #logout-button {
+            float: right;
+            padding: 8px 15px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        th {
+            background-color: #6c757d;
+            color: white;
+            text-transform: uppercase;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        tr:hover {
+            background-color: #e9f0f7;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-container">
+        <h2>Iniciar Sesión</h2>
+        <form id="login-form">
+            <label for="username">Usuario:</label>
+            <input type="text" id="username" name="username" required>
+            
+            <label for="password">Contraseña:</label>
+            <input type="password" id="password" name="password" required>
+            
+            <button type="submit">Acceder</button>
+            <p id="error-message" class="hidden">Usuario o contraseña incorrectos.</p>
+        </form>
+    </div>
+
+    <div id="directorio-container" class="hidden">
+        <h1>Directorio de Clientes</h1>
+        <p>¡Bienvenido! Este es tu directorio de clientes.</p>
+        <button id="logout-button">Cerrar Sesión</button>
+        
+        <table id="clientes-table">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Contraseña 🔒</th>
+                    <th>País 🗺️</th>
+                    <th>Notas 📝</th>
+                    <th>QR 🤳</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const loginContainer = document.getElementById('login-container');
+            const directorioContainer = document.getElementById('directorio-container');
+            const errorMessage = document.getElementById('error-message');
+            const logoutButton = document.getElementById('logout-button');
+            const tablaBody = document.querySelector('#clientes-table tbody');
+
+            // 🔑 CREDENCIALES DE DEMO (¡NO USAR EN PRODUCCIÓN!)
+            const USUARIO_CORRECTO = 'admin';
+            const CONTRASENA_CORRECTA = '12345';
+            
+            // 📝 DATOS DEL DIRECTORIO DE EJEMPLO
+            const clientes = [
+                { id: 1, cliente: "Acme Corp", pais: "España", notas: "Cliente principal", dataQR: "ID:1|Cliente:Acme Corp" },
+                { id: 2, cliente: "Beta Solutions", pais: "México", notas: "Próximo vencimiento", dataQR: "ID:2|Cliente:Beta Solutions" },
+                { id: 3, cliente: "Gamma Tech", pais: "Argentina", notas: "En revisión", dataQR: "ID:3|Cliente:Gamma Tech" }
+            ];
+
+            // Función para generar la tabla y los QRs
+            function generarDirectorio() {
+                // Limpiar cualquier contenido anterior
+                tablaBody.innerHTML = ''; 
+
+                clientes.forEach(cliente => {
+                    const fila = tablaBody.insertRow();
+                    
+                    // Columna Cliente
+                    fila.insertCell().textContent = cliente.cliente;
+                    
+                    // Columna Contraseña (siempre oculta por seguridad en la vista)
+                    fila.insertCell().textContent = '********'; 
+                    
+                    // Columna País
+                    fila.insertCell().textContent = cliente.pais;
+                    
+                    // Columna Notas
+                    fila.insertCell().textContent = cliente.notas;
+                    
+                    // Columna QR
+                    const celdaQR = fila.insertCell();
+                    
+                    // Crear un div que actuará como contenedor del QR
+                    const qrId = `qr-code-${cliente.id}`;
+                    celdaQR.innerHTML = `<div id="${qrId}"></div>`;
+                    
+                    // Generar el código QR
+                    new QRCode(document.getElementById(qrId), {
+                        text: cliente.dataQR,
+                        width: 64,
+                        height: 64,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                });
+            }
+
+            // --- Lógica del Login ---
+            loginForm.addEventListener('submit', function(event) {
+                event.preventDefault(); 
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (username === USUARIO_CORRECTO && password === CONTRASENA_CORRECTA) {
+                    // Login exitoso
+                    loginContainer.classList.add('hidden');
+                    directorioContainer.classList.remove('hidden');
+                    errorMessage.classList.add('hidden');
+                    
+                    // Cargar el directorio al iniciar sesión
+                    generarDirectorio(); 
+
+                } else {
+                    // Login fallido
+                    errorMessage.classList.remove('hidden');
+                }
+            });
+
+            // --- Lógica del Logout ---
+            logoutButton.addEventListener('click', () => {
+                directorioContainer.classList.add('hidden');
+                loginContainer.classList.remove('hidden');
+                loginForm.reset(); 
+            });
+        });
+
+        /*
+        NOTAS IMPORTANTES:
+        1. **SEGURIDAD**: La validación del login y los datos están en el frontend (JavaScript), lo cual NO ES SEGURO para un proyecto real.
+        2. **QR**: La generación de QR utiliza la librería 'qrcode.min.js' de un CDN (red de distribución de contenidos), lo que requiere conexión a internet.
+        */
+    </script>
+</body>
+</html>
