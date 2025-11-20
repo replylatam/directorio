@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directorio de Clientes | Admin</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        /* ---------------------------------------------------- */
+        /* --- 2. CSS (Estilos) --- */
+        /* ---------------------------------------------------- */
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e9ecef;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        /* Utilidad para ocultar elementos */
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- Estilos de Controles de Formulario --- */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* --- Estilos del Login --- */
+        #login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin-top: 50px;
+        }
+
+        #login-container h2 {
+            text-align: center;
+            color: #343a40;
+            margin-bottom: 20px;
+        }
+
+        #error-message {
+            color: #dc3545;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        /* --- Estilos del Directorio (Área de Admin) --- */
+        #directorio-container {
+            width: 90%;
+            max-width: 1200px;
+            margin-top: 20px;
+        }
+
+        #directorio-container h1 {
+            color: #343a40;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #logout-button {
+            float: right;
+            padding: 8px 15px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        /* Estilos del Formulario de Creación */
+        #new-user-form-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        #new-user-form-container h3 {
+            color: #28a745;
+            border-bottom: 2px solid #28a745;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+
+        /* Estilos de la Tabla */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        th {
+            background-color: #6c757d;
+            color: white;
+            text-transform: uppercase;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        tr:hover {
+            background-color: #e9f0f7;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-container">
+        <h2>Iniciar Sesión</h2>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Usuario:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Contraseña:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit">Acceder</button>
+            <p id="error-message" class="hidden">Usuario o contraseña incorrectos.</p>
+        </form>
+    </div>
+
+    <div id="directorio-container" class="hidden">
+        <h1>Directorio de Clientes y Usuarios</h1>
+        <button id="logout-button">Cerrar Sesión</button>
+        
+        <div id="new-user-form-container">
+            <h3>➕ Crear Nuevo Cliente/Usuario</h3>
+            <form id="new-user-form">
+                <div class="form-group">
+                    <label for="new-cliente">Nombre del Cliente (Usuario):</label>
+                    <input type="text" id="new-cliente" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-password">Contraseña:</label>
+                    <input type="text" id="new-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-pais">País:</label>
+                    <input type="text" id="new-pais" required>
+                </div>
+                <div class="form-group">
+                    <label for="new-notas">Notas:</label>
+                    <textarea id="new-notas"></textarea>
+                </div>
+                <button type="submit">Crear Usuario</button>
+            </form>
+            <p id="creation-message" class="hidden" style="color: #28a745; margin-top: 10px; font-weight: bold;">Usuario creado con éxito y añadido a la tabla.</p>
+        </div>
+
+        <table id="clientes-table">
+            <thead>
+                <tr>
+                    <th>Cliente (Usuario)</th>
+                    <th>Contraseña 🔒</th>
+                    <th>País 🗺️</th>
+                    <th>Notas 📝</th>
+                    <th>QR 🤳</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const loginContainer = document.getElementById('login-container');
+            const directorioContainer = document.getElementById('directorio-container');
+            const errorMessage = document.getElementById('error-message');
+            const logoutButton = document.getElementById('logout-button');
+            const tablaBody = document.querySelector('#clientes-table tbody');
+            const newUserForm = document.getElementById('new-user-form');
+            const creationMessage = document.getElementById('creation-message');
+
+
+            // 🔑 CREDENCIALES DE DEMO (¡NO USAR EN PRODUCCIÓN!)
+            const USUARIO_ADMIN = 'admin';
+            const CONTRASENA_ADMIN = '12345';
+            
+            // 📝 DATOS DEL DIRECTORIO DE EJEMPLO (Se usará como base de datos dinámica)
+            let clientes = [
+                { id: 1, cliente: "Acme Corp", password: "p1", pais: "España", notas: "Cliente principal", dataQR: "ID:1|Acme" },
+                { id: 2, cliente: "Beta Solutions", password: "p2", pais: "México", notas: "Próximo vencimiento", dataQR: "ID:2|Beta" },
+                { id: 3, cliente: "Gamma Tech", password: "p3", pais: "Argentina", notas: "En revisión", dataQR: "ID:3|Gamma" }
+            ];
+
+            // Función para generar la tabla y los QRs
+            function generarDirectorio() {
+                // Limpiar cualquier contenido anterior
+                tablaBody.innerHTML = ''; 
+                let currentId = 0;
+
+                clientes.forEach(cliente => {
+                    const fila = tablaBody.insertRow();
+                    
+                    // Columna Cliente
+                    fila.insertCell().textContent = cliente.cliente;
+                    
+                    // Columna Contraseña (siempre oculta, pero mostramos el password real para la demo)
+                    fila.insertCell().textContent = cliente.password; 
+                    
+                    // Columna País
+                    fila.insertCell().textContent = cliente.pais;
+                    
+                    // Columna Notas
+                    fila.insertCell().textContent = cliente.notas;
+                    
+                    // Columna QR
+                    const celdaQR = fila.insertCell();
+                    
+                    // Crear un div que actuará como contenedor del QR
+                    const qrId = `qr-code-${cliente.id}`;
+                    celdaQR.innerHTML = `<div id="${qrId}"></div>`;
+                    
+                    // Generar el código QR (solo si el elemento ya está en el DOM)
+                    // Usamos un pequeño delay para asegurar que el div existe
+                    setTimeout(() => {
+                        if(document.getElementById(qrId)) {
+                            new QRCode(document.getElementById(qrId), {
+                                text: cliente.dataQR,
+                                width: 64,
+                                height: 64,
+                                colorDark : "#000000",
+                                colorLight : "#ffffff",
+                                correctLevel : QRCode.CorrectLevel.H
+                            });
+                        }
+                    }, 0);
+                });
+            }
+
+            // --- Lógica del Login ---
+            loginForm.addEventListener('submit', function(event) {
+                event.preventDefault(); 
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                if (username === USUARIO_ADMIN && password === CONTRASENA_ADMIN) {
+                    // Login exitoso
+                    loginContainer.classList.add('hidden');
+                    directorioContainer.classList.remove('hidden');
+                    errorMessage.classList.add('hidden');
+                    
+                    // Cargar el directorio al iniciar sesión
+                    generarDirectorio(); 
+
+                } else {
+                    // Login fallido
+                    errorMessage.classList.remove('hidden');
+                }
+            });
+
+            // --- Lógica para Crear Nuevo Usuario ---
+            newUserForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                
+                const newCliente = document.getElementById('new-cliente').value;
+                const newPassword = document.getElementById('new-password').value;
+                const newPais = document.getElementById('new-pais').value;
+                const newNotas = document.getElementById('new-notas').value;
+
+                // Generar un nuevo ID y la data para el QR
+                const newId = clientes.length > 0 ? clientes[clientes.length - 1].id + 1 : 1;
+                const newQRData = `ID:${newId}|${newCliente}`;
+
+                // Crear el nuevo objeto cliente
+                const nuevoCliente = {
+                    id: newId,
+                    cliente: newCliente,
+                    password: newPassword, // ¡Peligro! No hagas esto en producción.
+                    pais: newPais,
+                    notas: newNotas,
+                    dataQR: newQRData
+                };
+
+                // Añadir el nuevo cliente al array
+                clientes.push(nuevoCliente);
+
+                // Recargar la tabla para mostrar el nuevo cliente
+                generarDirectorio();
+
+                // Mostrar mensaje de éxito y limpiar formulario
+                creationMessage.classList.remove('hidden');
+                setTimeout(() => creationMessage.classList.add('hidden'), 3000);
+                newUserForm.reset();
+            });
+
+            // --- Lógica del Logout ---
+            logoutButton.addEventListener('click', () => {
+                directorioContainer.classList.add('hidden');
+                loginContainer.classList.remove('hidden');
+                loginForm.reset(); 
+            });
+        });
+
+        /*
+        ADVERTENCIAS DE SEGURIDAD:
+        1. **ALMACENAMIENTO DE DATOS**: Los datos (incluyendo contraseñas) se almacenan en una variable JavaScript (`let clientes = [...]`), por lo que se pierden cada vez que se recarga la página.
+        2. **SEGURIDAD DE CONTRASEÑAS**: Las contraseñas se gestionan en texto plano. En un sistema real, la encriptación (hashing) es OBLIGATORIA.
+        */
+    </script>
+</body>
+</html>
