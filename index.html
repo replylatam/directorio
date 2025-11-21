@@ -6,7 +6,6 @@
     <title>Sistema de Gestión y Directorio de Clientes con 2FA</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/speakeasy/2.0.0/speakeasy.min.js"></script> 
 
     <style>
         /* ---------------------------------------------------- */
@@ -213,7 +212,8 @@
                         <th>País 🗺️</th>
                         <th>Notas 📝</th>
                         <th>QR 🤳</th>
-                        <th>2FA Código</th> </tr>
+                        <th>2FA Código</th>
+                    </tr>
                 </thead>
                 <tbody>
                     </tbody>
@@ -221,8 +221,10 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/speakeasy/2.0.0/speakeasy.min.js"></script>
+
     <script>
-        // Función auxiliar global para generar el código TOTP (accesible por los botones)
+        // Función auxiliar global para generar el código TOTP
         function generarCodigo2FA(secret) {
             if (!secret) {
                 alert("Este cliente no tiene una Llave Secreta 2FA configurada.");
@@ -230,22 +232,21 @@
             }
             
             try {
-                // Usamos speakeasy para generar el código TOTP
+                // Generamos el token usando la librería speakeasy
                 const token = speakeasy.totp({
                     secret: secret,
-                    encoding: 'base32', // El formato estándar de las claves de Google Authenticator
-                    step: 30, // 30 segundos, estándar de TOTP
-                    digits: 6 // 6 dígitos, estándar de TOTP
+                    encoding: 'base32', 
+                    step: 30, 
+                    digits: 6 
                 });
                 
-                // Mostrar el código en un alerta
                 alert(`Código 2FA actual para el cliente: \n\n🔑 ${token}`);
             } catch (error) {
                 console.error("Error generando TOTP:", error);
-                alert("Hubo un error al generar el código. Verifique la llave secreta.");
+                alert("Hubo un error al generar el código. Verifique la llave secreta (debe ser Base32: A-Z, 2-7).");
             }
         }
-        window.generarCodigo2FA = generarCodigo2FA;
+        window.generarCodigo2FA = generarCodigo2FA; // Se hace global para que el onclick lo pueda llamar
 
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -295,7 +296,7 @@
                     alert(`Operador con ID ${id} eliminado.`);
                 }
             }
-            window.eliminarOperador = eliminarOperador; // Hacerla accesible globalmente
+            window.eliminarOperador = eliminarOperador;
 
             // Función genérica para dibujar tablas
             function dibujarTablas() {
@@ -379,11 +380,11 @@
                     if (usuarioActual.rol === 'admin') {
                         adminSection.classList.remove('hidden');
                         adminDivider.classList.remove('hidden');
-                        clientCreationFormContainer.classList.remove('hidden'); // Admin puede crear clientes
+                        clientCreationFormContainer.classList.remove('hidden'); 
                     } else {
                         adminSection.classList.add('hidden');
                         adminDivider.classList.add('hidden');
-                        clientCreationFormContainer.classList.add('hidden'); // Operador NO puede crear clientes
+                        clientCreationFormContainer.classList.add('hidden'); 
                     }
                     
                     dibujarTablas(); 
@@ -431,7 +432,8 @@
                 const newEmail = document.getElementById('new-client-email').value;
                 const newPassword = document.getElementById('new-client-password').value;
                 const newPais = document.getElementById('new-client-pais').value;
-                const newSecret = document.getElementById('new-client-2fa-secret').value.toUpperCase().replace(/\s/g, ''); // Limpiar y poner en mayúsculas
+                // Importante: limpiamos la llave y la ponemos en mayúsculas para Base32
+                const newSecret = document.getElementById('new-client-2fa-secret').value.toUpperCase().replace(/\s/g, ''); 
                 const newNotas = document.getElementById('new-client-notas').value;
 
                 const maxId = clientesDirectorio.reduce((max, c) => (c.id > max ? c.id : max), 0);
@@ -443,7 +445,7 @@
                     email: newEmail,
                     password: newPassword,
                     pais: newPais,
-                    secret2fa: newSecret, // Guardamos la llave secreta
+                    secret2fa: newSecret, 
                     notas: newNotas
                 };
 
