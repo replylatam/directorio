@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Directorio de Clientes | Admin</title>
+    <title>Directorio de Clientes | Multi-Usuario</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
@@ -64,8 +64,8 @@
         button:hover {
             background-color: #0056b3;
         }
-
-        /* --- Estilos del Login --- */
+        
+        /* Estilos del Login */
         #login-container {
             background: white;
             padding: 30px;
@@ -88,7 +88,7 @@
             font-weight: bold;
         }
 
-        /* --- Estilos del Directorio (Área de Admin) --- */
+        /* Estilos del Directorio (Área de Admin/Operador) */
         #directorio-container {
             width: 90%;
             max-width: 1200px;
@@ -182,7 +182,7 @@
         <button id="logout-button">Cerrar Sesión</button>
         
         <div id="new-user-form-container">
-            <h3>➕ Crear Nuevo Cliente/Usuario</h3>
+            <h3>➕ Crear Nuevo Cliente/Usuario Operador</h3>
             <form id="new-user-form">
                 <div class="form-group">
                     <label for="new-cliente">Nombre del Cliente (Usuario):</label>
@@ -200,7 +200,9 @@
                     <label for="new-notas">Notas:</label>
                     <textarea id="new-notas"></textarea>
                 </div>
-                <button type="submit">Crear Usuario</button>
+                <input type="hidden" id="new-rol" value="operador">
+                
+                <button type="submit">Crear Usuario Operador</button>
             </form>
             <p id="creation-message" class="hidden" style="color: #28a745; margin-top: 10px; font-weight: bold;">Usuario creado con éxito y añadido a la tabla.</p>
         </div>
@@ -229,54 +231,43 @@
             const logoutButton = document.getElementById('logout-button');
             const tablaBody = document.querySelector('#clientes-table tbody');
             const newUserForm = document.getElementById('new-user-form');
+            const newUserFormContainer = document.getElementById('new-user-form-container');
             const creationMessage = document.getElementById('creation-message');
 
 
-            // 🔑 CREDENCIALES DE DEMO (¡NO USAR EN PRODUCCIÓN!)
-            const USUARIO_ADMIN = 'admin';
-            const CONTRASENA_ADMIN = '12345';
-            
-            // 📝 DATOS DEL DIRECTORIO DE EJEMPLO (Se usará como base de datos dinámica)
-            let clientes = [
-                { id: 1, cliente: "Acme Corp", password: "p1", pais: "España", notas: "Cliente principal", dataQR: "ID:1|Acme" },
-                { id: 2, cliente: "Beta Solutions", password: "p2", pais: "México", notas: "Próximo vencimiento", dataQR: "ID:2|Beta" },
-                { id: 3, cliente: "Gamma Tech", password: "p3", pais: "Argentina", notas: "En revisión", dataQR: "ID:3|Gamma" }
+            // 🔑 USUARIOS: Incluye el administrador y los operadores iniciales.
+            // *ATENCIÓN*: En un sistema real, el rol de usuario NO debe estar en el mismo array que los datos de cliente.
+            let usuarios = [
+                // Administrador (puede crear otros usuarios)
+                { id: 0, cliente: "admin", password: "12345", pais: "N/A", notas: "Cuenta de Administrador", dataQR: "ID:0|ADMIN", rol: "admin" },
+                // Operadores / Clientes iniciales
+                { id: 1, cliente: "Acme Corp", password: "p1", pais: "España", notas: "Cliente principal", dataQR: "ID:1|Acme", rol: "operador" },
+                { id: 2, cliente: "Beta Solutions", password: "p2", pais: "México", notas: "Próximo vencimiento", dataQR: "ID:2|Beta", rol: "operador" },
             ];
 
             // Función para generar la tabla y los QRs
             function generarDirectorio() {
                 // Limpiar cualquier contenido anterior
                 tablaBody.innerHTML = ''; 
-                let currentId = 0;
 
-                clientes.forEach(cliente => {
+                usuarios.forEach(usuario => {
                     const fila = tablaBody.insertRow();
                     
-                    // Columna Cliente
-                    fila.insertCell().textContent = cliente.cliente;
-                    
-                    // Columna Contraseña (siempre oculta, pero mostramos el password real para la demo)
-                    fila.insertCell().textContent = cliente.password; 
-                    
-                    // Columna País
-                    fila.insertCell().textContent = cliente.pais;
-                    
-                    // Columna Notas
-                    fila.insertCell().textContent = cliente.notas;
+                    fila.insertCell().textContent = usuario.cliente;
+                    fila.insertCell().textContent = usuario.password; // Muestra la contraseña (solo para demo)
+                    fila.insertCell().textContent = usuario.pais;
+                    fila.insertCell().textContent = usuario.notas;
                     
                     // Columna QR
                     const celdaQR = fila.insertCell();
-                    
-                    // Crear un div que actuará como contenedor del QR
-                    const qrId = `qr-code-${cliente.id}`;
+                    const qrId = `qr-code-${usuario.id}`;
                     celdaQR.innerHTML = `<div id="${qrId}"></div>`;
                     
-                    // Generar el código QR (solo si el elemento ya está en el DOM)
-                    // Usamos un pequeño delay para asegurar que el div existe
+                    // Generar el código QR con un pequeño retraso
                     setTimeout(() => {
                         if(document.getElementById(qrId)) {
                             new QRCode(document.getElementById(qrId), {
-                                text: cliente.dataQR,
+                                text: usuario.dataQR,
                                 width: 64,
                                 height: 64,
                                 colorDark : "#000000",
@@ -294,14 +285,26 @@
                 
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
+                
+                // Buscar el usuario en el array
+                const usuarioActual = usuarios.find(u => u.cliente === username && u.password === password);
 
-                if (username === USUARIO_ADMIN && password === CONTRASENA_ADMIN) {
+                if (usuarioActual) {
                     // Login exitoso
                     loginContainer.classList.add('hidden');
                     directorioContainer.classList.remove('hidden');
                     errorMessage.classList.add('hidden');
                     
-                    // Cargar el directorio al iniciar sesión
+                    // Ocultar/Mostrar formulario de creación según el rol
+                    if (usuarioActual.rol === 'admin') {
+                        newUserFormContainer.classList.remove('hidden');
+                        document.getElementById('directorio-container').querySelector('h1').textContent = 'Directorio de Clientes y Usuarios (ADMIN)';
+                    } else {
+                        newUserFormContainer.classList.add('hidden');
+                        document.getElementById('directorio-container').querySelector('h1').textContent = `Directorio de Clientes (${usuarioActual.cliente})`;
+                    }
+                    
+                    // Cargar el directorio
                     generarDirectorio(); 
 
                 } else {
@@ -310,7 +313,7 @@
                 }
             });
 
-            // --- Lógica para Crear Nuevo Usuario ---
+            // --- Lógica para Crear Nuevo Usuario Operador (Solo para admin) ---
             newUserForm.addEventListener('submit', function(event) {
                 event.preventDefault();
                 
@@ -318,25 +321,36 @@
                 const newPassword = document.getElementById('new-password').value;
                 const newPais = document.getElementById('new-pais').value;
                 const newNotas = document.getElementById('new-notas').value;
+                const newRol = document.getElementById('new-rol').value; // 'operador'
 
-                // Generar un nuevo ID y la data para el QR
-                const newId = clientes.length > 0 ? clientes[clientes.length - 1].id + 1 : 1;
-                const newQRData = `ID:${newId}|${newCliente}`;
+                // Verificar si ya existe un usuario con ese nombre
+                if (usuarios.some(u => u.cliente === newCliente)) {
+                    alert('Error: Ya existe un usuario con ese nombre. Por favor, elija otro.');
+                    return;
+                }
 
-                // Crear el nuevo objeto cliente
-                const nuevoCliente = {
+                // Generar el ID (el ID más alto actual + 1)
+                const maxId = usuarios.reduce((max, u) => (u.id > max ? u.id : max), 0);
+                const newId = maxId + 1;
+                
+                // Data para el QR
+                const newQRData = `ID:${newId}|${newCliente}|${newRol}`;
+
+                // Crear el nuevo objeto usuario
+                const nuevoUsuario = {
                     id: newId,
                     cliente: newCliente,
-                    password: newPassword, // ¡Peligro! No hagas esto en producción.
+                    password: newPassword, 
                     pais: newPais,
                     notas: newNotas,
-                    dataQR: newQRData
+                    dataQR: newQRData,
+                    rol: newRol // Esencial para el control de acceso
                 };
 
-                // Añadir el nuevo cliente al array
-                clientes.push(nuevoCliente);
+                // Añadir el nuevo usuario al array
+                usuarios.push(nuevoUsuario);
 
-                // Recargar la tabla para mostrar el nuevo cliente
+                // Recargar la tabla para mostrar el nuevo usuario
                 generarDirectorio();
 
                 // Mostrar mensaje de éxito y limpiar formulario
@@ -352,11 +366,13 @@
                 loginForm.reset(); 
             });
         });
-
+        
         /*
-        ADVERTENCIAS DE SEGURIDAD:
-        1. **ALMACENAMIENTO DE DATOS**: Los datos (incluyendo contraseñas) se almacenan en una variable JavaScript (`let clientes = [...]`), por lo que se pierden cada vez que se recarga la página.
-        2. **SEGURIDAD DE CONTRASEÑAS**: Las contraseñas se gestionan en texto plano. En un sistema real, la encriptación (hashing) es OBLIGATORIA.
+        ADVERTENCIA DE SEGURIDAD CRÍTICA:
+        En un proyecto real, la gestión de roles y la creación de usuarios NUNCA 
+        deben hacerse solo con JavaScript en el navegador. Se necesita un BACKEND
+        para validar permisos y almacenar los datos de forma persistente y segura 
+        (con HASHING de contraseñas).
         */
     </script>
 </body>
