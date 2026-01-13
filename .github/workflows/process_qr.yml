@@ -1,0 +1,34 @@
+name: Procesar QR Authenticator
+
+on:
+  workflow_dispatch: # Permite ejecutarlo con un botón manual
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Chequear repositorio
+        uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalar dependencias del sistema (zbar)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzbar0
+
+      - name: Instalar librerías Python
+        run: |
+          pip install -r requirements.txt
+
+      - name: Ejecutar Script
+        env:
+          # Estas variables vienen de los Secrets de GitHub
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: python main.py
