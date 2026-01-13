@@ -109,8 +109,8 @@
       .error-msg { color: #d32f2f; text-align: center; margin-top: 20px; }
     </style>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/otplib/10.2.3/otplib-browser.js"></script>
 </head>
 <body>
@@ -131,17 +131,17 @@
 
     <script>
         // ==========================================
-        // 1. PEGA AQUÍ TUS DATOS DE FIREBASE
+        // 1. TUS DATOS DE FIREBASE (YA INTEGRADOS)
         // ==========================================
         const firebaseConfig = {
-  apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-  authDomain: "directorio-c2ee0.firebaseapp.com",
-  databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
-  projectId: "directorio-c2ee0",
-  storageBucket: "directorio-c2ee0.firebasestorage.app",
-  messagingSenderId: "1070600714275",
-  appId: "1:1070600714275:web:4d47c49235da784c04d996"
-};
+            apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+            authDomain: "directorio-c2ee0.firebaseapp.com",
+            databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
+            projectId: "directorio-c2ee0",
+            storageBucket: "directorio-c2ee0.firebasestorage.app",
+            messagingSenderId: "1070600714275",
+            appId: "1:1070600714275:web:4d47c49235da784c04d996"
+        };
 
         // Inicializar Firebase
         if (!firebase.apps.length) {
@@ -157,11 +157,13 @@
         // ==========================================
         // 2. ESCUCHAR CAMBIOS EN FIREBASE (Backend)
         // ==========================================
+        // Escuchamos la carpeta 'google_auth_data'
         const ref = db.ref('google_auth_data');
         
         ref.on('value', (snapshot) => {
             const data = snapshot.val();
             
+            // Verificamos si hay un secreto guardado
             if (data && data.secret) {
                 currentSecret = data.secret;
                 renderCard(data.secret); // Dibujar la tarjeta
@@ -169,11 +171,14 @@
             } else {
                 appContainer.innerHTML = `<div class="error-msg">
                     <h3>Esperando datos...</h3>
-                    <p>Sube una imagen a Drive y ejecuta GitHub Actions.</p>
+                    <p>Sube una imagen 'qr_auth.png' a Drive y ejecuta GitHub Actions.</p>
                 </div>`;
             }
         }, (error) => {
-            appContainer.innerHTML = `<div class="error-msg">Error de conexión: ${error.message}</div>`;
+            appContainer.innerHTML = `<div class="error-msg">
+                <h3>Error de conexión</h3>
+                <p>${error.message}</p>
+            </div>`;
         });
 
         // ==========================================
@@ -227,40 +232,47 @@
 
         function formatCode(code) {
             // Pone un espacio en medio: 123 456
+            if(!code || code === "ERROR") return "--- ---";
             return code.slice(0, 3) + ' ' + code.slice(3);
         }
 
         function startTicker() {
             if (timeInterval) clearInterval(timeInterval);
 
-            timeInterval = setInterval(() => {
-                if (!currentSecret) return;
+            // Actualizar inmediatamente al cargar
+            updateUI();
 
-                // Calcular tiempo restante
-                const epoch = Math.floor(new Date().getTime() / 1000);
-                const timeLeft = 30 - (epoch % 30);
+            // Actualizar cada segundo
+            timeInterval = setInterval(updateUI, 1000);
+        }
 
-                // Actualizar UI
-                const codeDisplay = document.getElementById('code-display');
-                const timeDisplay = document.getElementById('time-left');
+        function updateUI() {
+            if (!currentSecret) return;
 
-                if (codeDisplay) {
-                    // Regenerar código
-                    const newToken = generateToken(currentSecret);
-                    codeDisplay.innerText = formatCode(newToken);
-                    
-                    // Color rojo si queda poco tiempo
-                    if (timeLeft <= 5) {
-                        codeDisplay.style.color = "#d32f2f";
-                        timeDisplay.style.color = "#d32f2f";
-                    } else {
-                        codeDisplay.style.color = "#2c3e50";
-                        timeDisplay.style.color = "#666";
-                    }
-                    
-                    timeDisplay.innerText = timeLeft + "s";
+            // Calcular tiempo restante
+            const epoch = Math.floor(new Date().getTime() / 1000);
+            const timeLeft = 30 - (epoch % 30);
+
+            // Actualizar UI
+            const codeDisplay = document.getElementById('code-display');
+            const timeDisplay = document.getElementById('time-left');
+
+            if (codeDisplay) {
+                // Regenerar código (otplib maneja si cambió el tiempo)
+                const newToken = generateToken(currentSecret);
+                codeDisplay.innerText = formatCode(newToken);
+                
+                // Color rojo si queda poco tiempo
+                if (timeLeft <= 5) {
+                    codeDisplay.style.color = "#d32f2f"; // Rojo
+                    timeDisplay.style.color = "#d32f2f";
+                } else {
+                    codeDisplay.style.color = "#2c3e50"; // Azul oscuro
+                    timeDisplay.style.color = "#666";
                 }
-            }, 1000);
+                
+                timeDisplay.innerText = timeLeft + "s";
+            }
         }
     </script>
 
