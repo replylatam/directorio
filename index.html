@@ -2,40 +2,146 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Autenticador</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Authenticator Cloud</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-        #token { font-size: 4rem; font-weight: bold; color: #1a73e8; letter-spacing: 5px; margin: 20px 0; }
-        #timer { color: #5f6368; font-size: 1.2rem; }
-        .status { font-size: 0.8rem; color: #aaa; margin-top: 10px; }
+      :root {
+        --primary-color: #2c3e50; 
+        --accent-color: #1976d2;
+        --bg-color: #f2f4f8;
+        --card-bg: #ffffff;
+        --text-main: #333;
+      }
+
+      body {
+        font-family: 'Roboto', sans-serif;
+        background-color: var(--bg-color);
+        margin: 0;
+        padding-top: 70px;
+        color: var(--text-main);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* HEADER ESTILO APPSHEET */
+      .app-header {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        background-color: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+        padding: 10px 15px;
+        z-index: 1000;
+        display: flex; align-items: center; justify-content: center;
+      }
+
+      .search-container {
+        width: 100%; max-width: 600px; position: relative;
+      }
+
+      .search-input {
+        width: 100%;
+        padding: 12px 40px 12px 15px;
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        background-color: #f5f5f5;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
+      .search-icon {
+        position: absolute; right: 12px; top: 50%;
+        transform: translateY(-50%); color: #9e9e9e;
+      }
+
+      /* CONTENEDOR */
+      .container {
+        max-width: 800px; margin: 0 auto; padding: 10px;
+      }
+
+      /* TARJETA */
+      .card {
+        background: var(--card-bg);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-left: 5px solid var(--accent-color);
+        position: relative;
+      }
+
+      .card-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;
+      }
+
+      .client-name {
+        font-size: 18px; font-weight: 700; color: var(--primary-color);
+      }
+
+      .status-badge {
+        font-size: 11px; background-color: #e8f5e9; color: #2e7d32;
+        padding: 4px 8px; border-radius: 12px; font-weight: 500;
+      }
+
+      /* TOTP DISPLAY */
+      .totp-section {
+        display: flex; justify-content: space-between; align-items: center;
+        padding-top: 10px;
+      }
+
+      .totp-code {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 32px; font-weight: 700;
+        color: var(--primary-color);
+        letter-spacing: 2px;
+      }
+
+      .timer-ring {
+        position: relative; width: 40px; height: 40px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; color: #666; font-weight: bold;
+      }
+      
+      /* Animación de carga */
+      .loader { text-align: center; margin-top: 50px; color: #999; }
+
+      /* Estado offline/error */
+      .error-msg { color: #d32f2f; text-align: center; margin-top: 20px; }
     </style>
+
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/otplib/10.2.3/otplib-browser.js"></script>
 </head>
 <body>
 
-    <div class="card">
-        <h2>Google Authenticator</h2>
-        <div id="token">Cargando...</div>
-        <div id="timer">--</div>
-        <div class="status" id="status">Conectando a la nube...</div>
+    <header class="app-header">
+        <div class="search-container">
+            <input type="text" class="search-input" placeholder="Buscar cuenta..." disabled>
+            <span class="material-icons search-icon">search</span>
+        </div>
+    </header>
+
+    <div class="container" id="app">
+        <div class="loader">
+            <span class="material-icons" style="font-size: 48px; animation: spin 1s infinite linear;">sync</span>
+            <p>Conectando con la nube...</p>
+        </div>
     </div>
 
     <script>
-        // --- PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE ---
+        // ==========================================
+        // 1. PEGA AQUÍ TUS DATOS DE FIREBASE
+        // ==========================================
         const firebaseConfig = {
-            apiKey: "TU_API_KEY",
-            authDomain: "TU_PROYECTO.firebaseapp.com",
-            databaseURL: "https://TU-PROYECTO.firebaseio.com", // Asegúrate de que esta URL sea correcta
-            projectId: "TU_PROYECTO_ID",
-            storageBucket: "TU_PROYECTO.appspot.com",
-            messagingSenderId: "NUMEROS...",
-            appId: "NUMEROS..."
-        };
-        // ----------------------------------------------
+  apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+  authDomain: "directorio-c2ee0.firebaseapp.com",
+  databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
+  projectId: "directorio-c2ee0",
+  storageBucket: "directorio-c2ee0.firebasestorage.app",
+  messagingSenderId: "1070600714275",
+  appId: "1:1070600714275:web:4d47c49235da784c04d996"
+};
 
         // Inicializar Firebase
         if (!firebase.apps.length) {
@@ -43,48 +149,123 @@
         }
         const db = firebase.database();
 
-        let secret = null;
+        // Referencia al DOM
+        const appContainer = document.getElementById('app');
+        let currentSecret = null;
+        let timeInterval = null;
 
-        // Escuchar cambios en Firebase en tiempo real
-        const statusDiv = document.getElementById('status');
-        const tokenDiv = document.getElementById('token');
-        const timerDiv = document.getElementById('timer');
-
-        db.ref('google_auth_data/secret').on('value', (snapshot) => {
-            const val = snapshot.val();
-            if (val) {
-                secret = val;
-                statusDiv.innerText = "Sincronizado con Drive";
-                updateToken(); // Actualizar inmediatamente
+        // ==========================================
+        // 2. ESCUCHAR CAMBIOS EN FIREBASE (Backend)
+        // ==========================================
+        const ref = db.ref('google_auth_data');
+        
+        ref.on('value', (snapshot) => {
+            const data = snapshot.val();
+            
+            if (data && data.secret) {
+                currentSecret = data.secret;
+                renderCard(data.secret); // Dibujar la tarjeta
+                startTicker(); // Arrancar el reloj
             } else {
-                statusDiv.innerText = "Esperando datos de GitHub...";
-                tokenDiv.innerText = "--- ---";
+                appContainer.innerHTML = `<div class="error-msg">
+                    <h3>Esperando datos...</h3>
+                    <p>Sube una imagen a Drive y ejecuta GitHub Actions.</p>
+                </div>`;
             }
         }, (error) => {
-            statusDiv.innerText = "Error de acceso: " + error.message;
+            appContainer.innerHTML = `<div class="error-msg">Error de conexión: ${error.message}</div>`;
         });
 
-        // Función para calcular el código TOTP
-        function updateToken() {
-            if (!secret) return;
-
-            otplib.authenticator.options = { step: 30, window: 0 };
+        // ==========================================
+        // 3. FUNCIONES VISUALES
+        // ==========================================
+        function renderCard(secret) {
+            // Generamos el código inicial
+            const token = generateToken(secret);
             
-            try {
-                const token = otplib.authenticator.generate(secret);
-                const timeRemaining = otplib.authenticator.timeRemaining();
-                
-                tokenDiv.innerText = token.slice(0, 3) + ' ' + token.slice(3);
-                timerDiv.innerText = `Cambia en ${timeRemaining}s`;
-            } catch (e) {
-                tokenDiv.innerText = "Error";
-                console.error(e);
-            }
+            // HTML de la tarjeta estilo AppSheet
+            appContainer.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <div>
+                            <div class="client-name">Cuenta Principal</div>
+                            <div style="font-size:12px; color:#777;">Google Authenticator</div>
+                        </div>
+                        <span class="status-badge">ACTIVO</span>
+                    </div>
+
+                    <div style="margin-bottom:15px;">
+                        <div style="display:flex; align-items:center; color:#555; font-size:14px; margin-bottom:5px;">
+                            <span class="material-icons" style="font-size:16px; margin-right:5px;">vpn_key</span>
+                            <span>Código de seguridad</span>
+                        </div>
+                        
+                        <div class="totp-section">
+                            <div id="code-display" class="totp-code">${formatCode(token)}</div>
+                            <div class="timer-ring">
+                                <span id="time-left">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background:#f5f5f5; padding:8px; font-size:11px; color:#999; border-radius:4px;">
+                        Sincronizado con GitHub & Drive
+                    </div>
+                </div>
+            `;
         }
 
-        // Actualizar cada segundo
-        setInterval(updateToken, 1000);
+        // ==========================================
+        // 4. LÓGICA DE GENERACIÓN (Backend Local)
+        // ==========================================
+        function generateToken(secret) {
+            otplib.authenticator.options = { step: 30, window: 0 };
+            try {
+                return otplib.authenticator.generate(secret);
+            } catch (e) { return "ERROR"; }
+        }
 
+        function formatCode(code) {
+            // Pone un espacio en medio: 123 456
+            return code.slice(0, 3) + ' ' + code.slice(3);
+        }
+
+        function startTicker() {
+            if (timeInterval) clearInterval(timeInterval);
+
+            timeInterval = setInterval(() => {
+                if (!currentSecret) return;
+
+                // Calcular tiempo restante
+                const epoch = Math.floor(new Date().getTime() / 1000);
+                const timeLeft = 30 - (epoch % 30);
+
+                // Actualizar UI
+                const codeDisplay = document.getElementById('code-display');
+                const timeDisplay = document.getElementById('time-left');
+
+                if (codeDisplay) {
+                    // Regenerar código
+                    const newToken = generateToken(currentSecret);
+                    codeDisplay.innerText = formatCode(newToken);
+                    
+                    // Color rojo si queda poco tiempo
+                    if (timeLeft <= 5) {
+                        codeDisplay.style.color = "#d32f2f";
+                        timeDisplay.style.color = "#d32f2f";
+                    } else {
+                        codeDisplay.style.color = "#2c3e50";
+                        timeDisplay.style.color = "#666";
+                    }
+                    
+                    timeDisplay.innerText = timeLeft + "s";
+                }
+            }, 1000);
+        }
     </script>
+
+    <style>
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
 </body>
 </html>
