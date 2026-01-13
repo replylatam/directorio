@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import time 
 import pyotp
 import firebase_admin
 from firebase_admin import credentials, db
@@ -12,16 +13,13 @@ from pyzbar.pyzbar import decode
 from urllib.parse import urlparse, parse_qs
 
 # --- CONFIGURACIÓN ---
-# ID de la carpeta en Drive donde pones la imagen del QR
 DRIVE_FOLDER_ID = os.environ.get('DRIVE_FOLDER_ID') 
-# Nombre del archivo de imagen (ej: qr.png)
 IMAGE_NAME = 'qr_auth.png' 
 
 def main():
     print("--- Iniciando proceso ---")
     
-    # 1. Cargar Credenciales desde Secret de GitHub
-    # Asumimos que usas la misma cuenta de servicio para Drive y Firebase
+    # 1. Cargar Credenciales
     creds_json = json.loads(os.environ['GCP_SA_KEY'])
     g_creds = service_account.Credentials.from_service_account_info(creds_json)
 
@@ -29,7 +27,6 @@ def main():
     print("Conectando a Drive...")
     drive_service = build('drive', 'v3', credentials=g_creds)
     
-    # Buscar la imagen en la carpeta especificada
     query = f"'{DRIVE_FOLDER_ID}' in parents and name = '{IMAGE_NAME}' and trashed = false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     items = results.get('files', [])
@@ -41,7 +38,6 @@ def main():
     file_id = items[0]['id']
     print(f"Archivo encontrado: {file_id}. Descargando...")
 
-    # Descargar imagen en memoria
     request = drive_service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -49,7 +45,7 @@ def main():
     while done is False:
         status, done = downloader.next_chunk()
     
-    fh.seek(0) # Volver al inicio del archivo en memoria
+    fh.seek(0)
 
     # 3. Leer el QR
     print("Procesando imagen QR...")
@@ -64,7 +60,6 @@ def main():
     print("QR detectado.")
 
     # 4. Extraer el Secreto
-    # El formato suele ser: otpauth://totp/Example:user?secret=JBSWY3DPEHPK3PXP&issuer=Example
     parsed_url = urlparse(qr_data)
     qs = parse_qs(parsed_url.query)
     
@@ -74,10 +69,9 @@ def main():
         
     secret = qs['secret'][0]
     
-    # Opcional: Generar código actual para probar
+    # Generar código de prueba para log
     totp = pyotp.TOTP(secret)
-    current_code = totp.now()
-    print(f"Secreto extraído exitosamente. Código actual de prueba: {current_code}")
+    print(f"Secreto extraído exitosamente. Código actual de prueba: {totp.now()}")
 
     # 5. Enviar a Firebase
     print("Conectando a Firebase...")
@@ -88,9 +82,11 @@ def main():
         })
 
     ref = db.reference('google_auth_data')
+    
+    # AQUÍ ESTABA EL ERROR: Usamos time.time() de Python
     ref.set({
         'secret': secret,
-        'last_updated': firebase_admin.db.ServerValue.TIMESTAMP,
+        'last_updated': int(time.time() * 1000), 
         'status': 'active'
     })
     
