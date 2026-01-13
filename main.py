@@ -22,7 +22,20 @@ def main():
     
     # 1. Cargar Credenciales desde Secret de GitHub
     # Asumimos que usas la misma cuenta de servicio para Drive y Firebase
-    creds_json = json.loads(os.environ['GCP_SA_KEY'])
+    creds_json = json.loads(os.environ[{
+  "type": "service_account",
+  "project_id": "directorio-484214",
+  "private_key_id": "16950ea6bd724b1bbaf3b88cbf65649ff400f46f",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDAopIeOjLotHJ4\nKhAvVD4IGkYLgXlBkx+jg1PfvQZ5MURblyz53sHB80oWN+l/8uWVwA3W7vbFmy6B\n3ntLK9BVF0thaYpe1dgsaO2M4tqHOYFuYEEq6lZDkDhlFJL4OijKxrgzy4/gfc5c\ngOk4PAVsKm9t/2Z9Tyf4SWSkjIbqaFBm4kHn6fiS8QoefnBQvTd4T9On+Uy6BQsv\nUT9sBJeiB/Bv7PCB1xHNfgyQSMnKmFH5GLDtalL59t9fjxAg3KkRTSBNlRm0yniV\nwCOdfCUZq1JT7lOrxVKM8QXNV27xPoVbosp4voYNY4n8pASWxS8XMWWSj064IPPO\nkGbWTFQZAgMBAAECgf98SGb9buRplAJGhNzsVu2uoe+PJ3mT/9fp0aZ2M6kkMnpn\n8qE8lPttUV9QoReFSrEqbJPWmADz0lWvHwYXpFeajpeTwa6vK54iXjrlKszSxxyP\n7zTG+2msgt/frJEl6wq7ySS5m3Fi5R1pkReRsH0kducYO4S5qYL1gw9BGr6bfJDN\nlSUDoqU1xPaCuSvxTCqskS/9H2o1ODcE1MXrV/IveAKNfboS8K+hFzjL9muZ+Pf7\n8e/rYUUDciKKYDOA91lCdarvVro64TL2Tc+JE60/8iYOuo+IJLwDUQuRUgwFY6ur\navlA+la3B9M01wknn9TIbJwxBcS34xbwmEak46MCgYEA/IK8hjU2ev/mH0kqeEDv\n66K67stH4AjuKzdXAaJyapECoupwEguLExT8U1ZLFz0xntPEfyfJMTVEiPox3QQF\nTac6iVmcWIstFbPMa+6eeQ3Xp6v1QJniRhFje9UPINr28Q1sMZKXE5hM6hEHr1ed\npliO1vo7f5DxMkAjxt5uRW8CgYEAw0wFyDS4qwVaut4Up7lPlLnWNNst1AalEr9V\nPF2rLxaT2oiWAobUPu+eHJkG60jaUhUwJp2dOOypUw8RIsQ8Ev3fjdEWd/MzUxyW\nTDXixJjwwaRJvzogolOxGQDBzGUq3dY2ojDiltcyNBcDB3++7y9iqIGlwqN1SO23\n+slfCvcCgYBTX7ttuM43SJ0sAVWDhTVyoTWFuRsPTwOMw2X4BTIwG5c6QZwlaShP\ncaNqxNhgYPUsUxHTRki49bSeYbXrGvPBUxER3sOvvKxzOP2rOYubvsVQ+IcvAGBk\n8ELf1VZ8a7AToXHy4Er/zk6/DkZyT8Se8yietNrGYQ4yoFjvxeu1AwKBgQCzE7yh\njiZfO3OssgMCoNumJpmSsf/d0ZIAFM3VopZbgTpmQqQ7AOMSKqoy0ucTTCRU6/TR\nE+mczvWcoc42sPXc/EnHQph1uN2xMh9nFmovl4X8Kectn+FYt6FGqfkKsSGTdN93\n7Zd4dS8lsIwojizIKg0vMmKKjVP4YXI4Vfn+lQKBgQDScKeX5tmhgZmpGRAZnDHZ\n/Fz2DU06iuX44RqOnJKG8wKCSabolcZJsNGV7IM/b3pgTQmiFTxOgnBP6rZkS6Cz\nOgTGxGLi6bs0qFTzvSaDgfsvo4Y7a0TEDAhC6MOgvqKxRaYqczv+xYENZLmJUuvC\nB1tOIWzjxsi12nTLUq9HHA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "bot-lector-qr@directorio-484214.iam.gserviceaccount.com",
+  "client_id": "114793138783898320041",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/bot-lector-qr%40directorio-484214.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
+])
     g_creds = service_account.Credentials.from_service_account_info(creds_json)
 
     # 2. Conectar a Google Drive
