@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Autenticador</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f2f5; margin: 0; }
+        .card { background: white; padding: 2rem; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        #token { font-size: 4rem; font-weight: bold; color: #1a73e8; letter-spacing: 5px; margin: 20px 0; }
+        #timer { color: #5f6368; font-size: 1.2rem; }
+        .status { font-size: 0.8rem; color: #aaa; margin-top: 10px; }
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/otplib/10.2.3/otplib-browser.js"></script>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Google Authenticator</h2>
+        <div id="token">Cargando...</div>
+        <div id="timer">--</div>
+        <div class="status" id="status">Conectando a la nube...</div>
+    </div>
+
+    <script>
+        // --- PEGA AQUÍ TU CONFIGURACIÓN DE FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "TU_API_KEY",
+            authDomain: "TU_PROYECTO.firebaseapp.com",
+            databaseURL: "https://TU-PROYECTO.firebaseio.com", // Asegúrate de que esta URL sea correcta
+            projectId: "TU_PROYECTO_ID",
+            storageBucket: "TU_PROYECTO.appspot.com",
+            messagingSenderId: "NUMEROS...",
+            appId: "NUMEROS..."
+        };
+        // ----------------------------------------------
+
+        // Inicializar Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
+
+        let secret = null;
+
+        // Escuchar cambios en Firebase en tiempo real
+        const statusDiv = document.getElementById('status');
+        const tokenDiv = document.getElementById('token');
+        const timerDiv = document.getElementById('timer');
+
+        db.ref('google_auth_data/secret').on('value', (snapshot) => {
+            const val = snapshot.val();
+            if (val) {
+                secret = val;
+                statusDiv.innerText = "Sincronizado con Drive";
+                updateToken(); // Actualizar inmediatamente
+            } else {
+                statusDiv.innerText = "Esperando datos de GitHub...";
+                tokenDiv.innerText = "--- ---";
+            }
+        }, (error) => {
+            statusDiv.innerText = "Error de acceso: " + error.message;
+        });
+
+        // Función para calcular el código TOTP
+        function updateToken() {
+            if (!secret) return;
+
+            otplib.authenticator.options = { step: 30, window: 0 };
+            
+            try {
+                const token = otplib.authenticator.generate(secret);
+                const timeRemaining = otplib.authenticator.timeRemaining();
+                
+                tokenDiv.innerText = token.slice(0, 3) + ' ' + token.slice(3);
+                timerDiv.innerText = `Cambia en ${timeRemaining}s`;
+            } catch (e) {
+                tokenDiv.innerText = "Error";
+                console.error(e);
+            }
+        }
+
+        // Actualizar cada segundo
+        setInterval(updateToken, 1000);
+
+    </script>
+</body>
+</html>
