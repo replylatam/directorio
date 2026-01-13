@@ -24,10 +24,9 @@
         -webkit-font-smoothing: antialiased;
       }
 
-      /* HEADER ESTILO APPSHEET */
+      /* HEADER */
       .app-header {
-        position: fixed;
-        top: 0; left: 0; right: 0;
+        position: fixed; top: 0; left: 0; right: 0;
         background-color: white;
         box-shadow: 0 2px 5px rgba(0,0,0,0.08);
         padding: 10px 15px;
@@ -35,77 +34,37 @@
         display: flex; align-items: center; justify-content: center;
       }
 
-      .search-container {
-        width: 100%; max-width: 600px; position: relative;
-      }
-
+      .search-container { width: 100%; max-width: 600px; position: relative; }
       .search-input {
-        width: 100%;
-        padding: 12px 40px 12px 15px;
-        border-radius: 8px;
-        border: 1px solid #e0e0e0;
-        background-color: #f5f5f5;
-        font-size: 16px;
-        box-sizing: border-box;
+        width: 100%; padding: 12px 40px 12px 15px; border-radius: 8px;
+        border: 1px solid #e0e0e0; background-color: #f5f5f5;
+        font-size: 16px; box-sizing: border-box;
       }
-      .search-icon {
-        position: absolute; right: 12px; top: 50%;
-        transform: translateY(-50%); color: #9e9e9e;
-      }
+      .search-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #9e9e9e; }
 
-      /* CONTENEDOR */
-      .container {
-        max-width: 800px; margin: 0 auto; padding: 10px;
-      }
+      /* CONTAINER */
+      .container { max-width: 800px; margin: 0 auto; padding: 10px; }
 
-      /* TARJETA */
+      /* CARD */
       .card {
-        background: var(--card-bg);
-        border-radius: 10px;
-        padding: 16px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        border-left: 5px solid var(--accent-color);
-        position: relative;
+        background: var(--card-bg); border-radius: 10px; padding: 16px; margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 5px solid var(--accent-color);
       }
 
       .card-header {
         display: flex; justify-content: space-between; align-items: center;
         margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;
       }
+      .client-name { font-size: 18px; font-weight: 700; color: var(--primary-color); }
+      .status-badge { font-size: 11px; background-color: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 12px; font-weight: 500; }
 
-      .client-name {
-        font-size: 18px; font-weight: 700; color: var(--primary-color);
-      }
+      /* TOTP */
+      .totp-section { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; }
+      .totp-code { font-family: 'Roboto Mono', monospace; font-size: 32px; font-weight: 700; color: var(--primary-color); letter-spacing: 2px; }
+      .timer-ring { font-size: 12px; color: #666; font-weight: bold; width: 40px; text-align: center;}
 
-      .status-badge {
-        font-size: 11px; background-color: #e8f5e9; color: #2e7d32;
-        padding: 4px 8px; border-radius: 12px; font-weight: 500;
-      }
-
-      /* TOTP DISPLAY */
-      .totp-section {
-        display: flex; justify-content: space-between; align-items: center;
-        padding-top: 10px;
-      }
-
-      .totp-code {
-        font-family: 'Roboto Mono', monospace;
-        font-size: 32px; font-weight: 700;
-        color: var(--primary-color);
-        letter-spacing: 2px;
-      }
-
-      .timer-ring {
-        position: relative; width: 40px; height: 40px;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 12px; color: #666; font-weight: bold;
-      }
-      
-      /* Animación de carga */
+      /* Loader */
       .loader { text-align: center; margin-top: 50px; color: #999; }
-
-      /* Estado offline/error */
       .error-msg { color: #d32f2f; text-align: center; margin-top: 20px; }
     </style>
 
@@ -125,14 +84,12 @@
     <div class="container" id="app">
         <div class="loader">
             <span class="material-icons" style="font-size: 48px; animation: spin 1s infinite linear;">sync</span>
-            <p>Conectando con la nube...</p>
+            <p>Conectando...</p>
         </div>
     </div>
 
     <script>
-        // ==========================================
-        // 1. TUS DATOS DE FIREBASE (YA INTEGRADOS)
-        // ==========================================
+        // CONFIGURACIÓN CORREGIDA (Sin 'import', usando sintaxis clásica)
         const firebaseConfig = {
             apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
             authDomain: "directorio-c2ee0.firebaseapp.com",
@@ -144,51 +101,47 @@
         };
 
         // Inicializar Firebase
-        if (!firebase.apps.length) {
+        try {
             firebase.initializeApp(firebaseConfig);
+            console.log("Firebase inicializado correctamente");
+        } catch (e) {
+            console.error("Error al inicializar Firebase:", e);
         }
-        const db = firebase.database();
 
-        // Referencia al DOM
+        const db = firebase.database();
         const appContainer = document.getElementById('app');
         let currentSecret = null;
         let timeInterval = null;
 
-        // ==========================================
-        // 2. ESCUCHAR CAMBIOS EN FIREBASE (Backend)
-        // ==========================================
-        // Escuchamos la carpeta 'google_auth_data'
+        // Escuchar base de datos
         const ref = db.ref('google_auth_data');
         
         ref.on('value', (snapshot) => {
             const data = snapshot.val();
+            console.log("Datos recibidos:", data); // Para depurar en consola
             
-            // Verificamos si hay un secreto guardado
             if (data && data.secret) {
                 currentSecret = data.secret;
-                renderCard(data.secret); // Dibujar la tarjeta
-                startTicker(); // Arrancar el reloj
+                renderCard(data.secret);
+                startTicker();
             } else {
                 appContainer.innerHTML = `<div class="error-msg">
-                    <h3>Esperando datos...</h3>
-                    <p>Sube una imagen 'qr_auth.png' a Drive y ejecuta GitHub Actions.</p>
+                    <h3>Base de datos conectada pero vacía</h3>
+                    <p>Sube la imagen 'qr_auth.png' a Drive y ejecuta GitHub Actions.</p>
                 </div>`;
             }
         }, (error) => {
+            console.error("Error de lectura:", error);
             appContainer.innerHTML = `<div class="error-msg">
-                <h3>Error de conexión</h3>
-                <p>${error.message}</p>
+                <h3>Error de acceso</h3>
+                <p>Verifica las Reglas en Firebase.</p>
+                <small>${error.message}</small>
             </div>`;
         });
 
-        // ==========================================
-        // 3. FUNCIONES VISUALES
-        // ==========================================
+        // Funciones Visuales
         function renderCard(secret) {
-            // Generamos el código inicial
             const token = generateToken(secret);
-            
-            // HTML de la tarjeta estilo AppSheet
             appContainer.innerHTML = `
                 <div class="card">
                     <div class="card-header">
@@ -198,86 +151,63 @@
                         </div>
                         <span class="status-badge">ACTIVO</span>
                     </div>
-
                     <div style="margin-bottom:15px;">
                         <div style="display:flex; align-items:center; color:#555; font-size:14px; margin-bottom:5px;">
                             <span class="material-icons" style="font-size:16px; margin-right:5px;">vpn_key</span>
                             <span>Código de seguridad</span>
                         </div>
-                        
                         <div class="totp-section">
                             <div id="code-display" class="totp-code">${formatCode(token)}</div>
-                            <div class="timer-ring">
-                                <span id="time-left">--</span>
-                            </div>
+                            <div class="timer-ring"><span id="time-left">--</span></div>
                         </div>
                     </div>
-                    
                     <div style="background:#f5f5f5; padding:8px; font-size:11px; color:#999; border-radius:4px;">
-                        Sincronizado con GitHub & Drive
+                        Sincronizado vía Cloud
                     </div>
                 </div>
             `;
         }
 
-        // ==========================================
-        // 4. LÓGICA DE GENERACIÓN (Backend Local)
-        // ==========================================
         function generateToken(secret) {
+            if (!otplib) return "ERR-LIB";
             otplib.authenticator.options = { step: 30, window: 0 };
-            try {
-                return otplib.authenticator.generate(secret);
-            } catch (e) { return "ERROR"; }
+            try { return otplib.authenticator.generate(secret); } catch (e) { return "ERROR"; }
         }
 
         function formatCode(code) {
-            // Pone un espacio en medio: 123 456
-            if(!code || code === "ERROR") return "--- ---";
+            if (!code || code.length < 6) return "--- ---";
             return code.slice(0, 3) + ' ' + code.slice(3);
         }
 
         function startTicker() {
             if (timeInterval) clearInterval(timeInterval);
-
-            // Actualizar inmediatamente al cargar
             updateUI();
-
-            // Actualizar cada segundo
             timeInterval = setInterval(updateUI, 1000);
         }
 
         function updateUI() {
             if (!currentSecret) return;
-
-            // Calcular tiempo restante
             const epoch = Math.floor(new Date().getTime() / 1000);
             const timeLeft = 30 - (epoch % 30);
-
-            // Actualizar UI
+            
             const codeDisplay = document.getElementById('code-display');
             const timeDisplay = document.getElementById('time-left');
 
             if (codeDisplay) {
-                // Regenerar código (otplib maneja si cambió el tiempo)
                 const newToken = generateToken(currentSecret);
                 codeDisplay.innerText = formatCode(newToken);
                 
-                // Color rojo si queda poco tiempo
                 if (timeLeft <= 5) {
-                    codeDisplay.style.color = "#d32f2f"; // Rojo
+                    codeDisplay.style.color = "#d32f2f";
                     timeDisplay.style.color = "#d32f2f";
                 } else {
-                    codeDisplay.style.color = "#2c3e50"; // Azul oscuro
+                    codeDisplay.style.color = "#2c3e50";
                     timeDisplay.style.color = "#666";
                 }
-                
                 timeDisplay.innerText = timeLeft + "s";
             }
         }
     </script>
-
-    <style>
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-    </style>
+    <style> @keyframes spin { 100% { transform: rotate(360deg); } } </style>
 </body>
 </html>
