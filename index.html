@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
 <title>Authenticator Cloud</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -15,70 +15,124 @@
 <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/dist/otplib.umd.min.js"></script>
 
 <style>
-body {
-  font-family: Inter, system-ui, sans-serif;
-  background:#0f172a;
-  color:#e5e7eb;
-  margin:0;
-  padding:24px;
-}
-.top {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:24px;
-}
-.container {
-  max-width:1100px;
-  margin:auto;
-}
-.card {
-  background:#020617;
-  border:1px solid #1e293b;
-  border-radius:14px;
-  padding:16px;
-  margin-bottom:12px;
-}
-button {
-  background:#6366f1;
-  border:none;
-  color:white;
-  padding:10px 14px;
-  border-radius:10px;
-  cursor:pointer;
-}
-button.secondary {
-  background:#1e293b;
-}
-input {
-  width:100%;
-  padding:10px;
-  border-radius:10px;
-  border:1px solid #1e293b;
-  background:#020617;
-  color:white;
-  margin-bottom:10px;
-}
-.totp {
-  font-size:28px;
-  letter-spacing:3px;
-  margin-top:6px;
-}
-.small {
-  font-size:12px;
-  color:#94a3b8;
-}
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background:#0f172a;
+    color:#e5e7eb;
+    margin:0;
+    padding:24px;
+  }
+  .top {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:24px;
+    gap:12px;
+  }
+  .container {
+    max-width:1100px;
+    margin:auto;
+  }
+  .card {
+    background:#020617;
+    border:1px solid #1e293b;
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:12px;
+  }
+  .row {
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  .col {
+    flex:1;
+    min-width:240px;
+  }
+  button {
+    background:#6366f1;
+    border:none;
+    color:white;
+    padding:10px 14px;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  button.secondary { background:#1e293b; }
+  button.danger { background:#ef4444; }
+  button:disabled { opacity:.6; cursor:not-allowed; }
+
+  input, select {
+    width:100%;
+    padding:10px;
+    border-radius:10px;
+    border:1px solid #1e293b;
+    background:#020617;
+    color:white;
+    margin-bottom:10px;
+    outline:none;
+  }
+  .totp {
+    font-size:28px;
+    letter-spacing:3px;
+    margin-top:6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .small { font-size:12px; color:#94a3b8; }
+  .muted { color:#94a3b8; }
+  .pill {
+    display:inline-block;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid #1e293b;
+    background:#0b1223;
+    font-size:12px;
+    color:#c7d2fe;
+  }
+  .divider {
+    height:1px;
+    background:#1e293b;
+    margin:12px 0;
+  }
+  .grid2 {
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:12px;
+  }
+  @media(max-width: 900px){
+    .grid2{ grid-template-columns: 1fr; }
+  }
+  .toast {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0b1223;
+    border: 1px solid #1e293b;
+    padding: 10px 14px;
+    border-radius: 12px;
+    color: #e5e7eb;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    display:none;
+    max-width: 92vw;
+    z-index: 99;
+  }
 </style>
 </head>
 
 <body>
+  <div class="top">
+    <strong>Authenticator Cloud</strong>
+    <div class="row">
+      <span class="small" id="whoami"></span>
+      <button id="loginBtn">Login con Google</button>
+      <button id="logoutBtn" class="secondary" style="display:none;">Salir</button>
+    </div>
+  </div>
 
-<div class="top">
-  <strong>Authenticator Cloud</strong>
-  <button id="loginBtn">Login con Google</button>
-</div>
-
-<div class="container" id="app">Cargando…</div>
+  <div class="container" id="app">Cargando…</div>
+  <div class="toast" id="toast"></div>
 
 <script>
 /* ================= Firebase ================= */
@@ -91,128 +145,495 @@ firebase.initializeApp({
 
 const auth = firebase.auth();
 const db = firebase.database();
+
 const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
+
+// Donde guardamos “usuarios permitidos” por email
+// usersByEmail/{emailKey} => { email, role, createdAt }
+const USERS_PATH = "usersByEmail";
+const CLIENTS_PATH = "clients";
+
+/* ================= Helpers ================= */
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.style.display = "none", 2600);
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+// Realtime DB no permite keys con ".", "#", "$", "[", "]", "/"
+function emailToKey(email) {
+  return String(email || "").trim().toLowerCase()
+    .replaceAll(".", ",");
+}
+
+function isEmailValid(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||"").trim());
+}
+
+function setWhoami(text){
+  document.getElementById("whoami").textContent = text || "";
+}
+
+function showLoginUI(show){
+  document.getElementById("loginBtn").style.display = show ? "inline-block" : "none";
+  document.getElementById("logoutBtn").style.display = show ? "none" : "inline-block";
+}
 
 /* ================= Login ================= */
 document.getElementById("loginBtn").onclick = () => {
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 };
 
-auth.onAuthStateChanged(async user => {
-  if (!user) return;
-  const role = user.email === ADMIN_EMAIL ? "admin" : "operator";
-  renderApp(role, user);
-});
+document.getElementById("logoutBtn").onclick = async () => {
+  await auth.signOut();
+};
 
-/* ================= UI ================= */
-function renderApp(role, user) {
+auth.onAuthStateChanged(async user => {
   const app = document.getElementById("app");
 
+  if (!user) {
+    showLoginUI(true);
+    setWhoami("");
+    app.innerHTML = `
+      <div class="card">
+        <h2>Ingresar</h2>
+        <p class="muted">Primero iniciá sesión con Google. Luego se habilitan las opciones según tu mail.</p>
+        <div class="divider"></div>
+        <button onclick="document.getElementById('loginBtn').click()">Login con Google</button>
+      </div>
+    `;
+    return;
+  }
+
+  showLoginUI(false);
+  setWhoami(user.email);
+
+  // Determinar rol:
+  // - Admin fijo por email
+  // - Si no es admin, debe existir en usersByEmail, si no: no autorizado
+  let role = "operator";
+
+  if (user.email === ADMIN_EMAIL) {
+    role = "admin";
+  } else {
+    const k = emailToKey(user.email);
+    const snap = await db.ref(`${USERS_PATH}/${k}`).get();
+    const data = snap.val();
+    if (!data) {
+      app.innerHTML = `
+        <div class="card">
+          <h2>Acceso no autorizado</h2>
+          <p class="muted">Tu email (<b>${escapeHtml(user.email)}</b>) no está habilitado. Pedile al admin que te agregue.</p>
+          <div class="divider"></div>
+          <button class="secondary" onclick="document.getElementById('logoutBtn').click()">Salir</button>
+        </div>
+      `;
+      // Cortamos sesión para que no quede “adentro”
+      setTimeout(() => auth.signOut(), 800);
+      return;
+    }
+    role = data.role || "operator";
+  }
+
+  // Por ahora: trabajar en vista admin
+  if (role !== "admin") {
+    app.innerHTML = `
+      <div class="card">
+        <h2>Panel Operador (pendiente)</h2>
+        <p class="muted">Por ahora vamos a trabajar solo la vista Admin.</p>
+      </div>
+    `;
+    return;
+  }
+
+  renderAdmin(user);
+});
+
+/* ================= Admin UI ================= */
+function renderAdmin(user){
+  const app = document.getElementById("app");
   app.innerHTML = `
     <div class="card">
-      <h2>${role === "admin" ? "Panel Admin" : "Panel Operador"}</h2>
-      <p class="small">${user.email}</p>
-      ${role === "admin" ? `<button onclick="showCreate()">+ Nuevo cliente</button>` : ""}
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <h2 style="margin:0 0 6px 0;">Panel Admin</h2>
+          <div class="small">${escapeHtml(user.email)} <span class="pill">admin</span></div>
+        </div>
+        <div class="row">
+          <button onclick="showCreateClient()">+ Nuevo cliente</button>
+        </div>
+      </div>
     </div>
-    <div id="clients"></div>
+
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Usuarios</h3>
+          <p class="small">Acá agregás/eliminás usuarios habilitados (operadores u otros admins).</p>
+
+          <div class="divider"></div>
+
+          <div class="row">
+            <div class="col">
+              <input id="newUserEmail" placeholder="Email (ej: acco@replylatam.com)" />
+            </div>
+            <div style="min-width:200px;">
+              <select id="newUserRole">
+                <option value="operator">operator</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div style="min-width:160px;">
+              <button id="addUserBtn" onclick="addUser()">Agregar usuario</button>
+            </div>
+          </div>
+
+          <div id="usersList" class="small muted">Cargando usuarios…</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Clientes</h3>
+          <p class="small">Listado de clientes cargados. (Crear ya funciona arriba).</p>
+          <div id="clients" class="small muted">Cargando clientes…</div>
+        </div>
+      </div>
+    </div>
   `;
 
-  loadClients(role, user.email);
+  loadUsers();
+  loadClientsAdmin();
 }
 
-/* ================= Clientes ================= */
-function loadClients(role, email) {
+/* ================= Usuarios (Admin) ================= */
+function loadUsers(){
+  const usersList = document.getElementById("usersList");
+
+  db.ref(USERS_PATH).on("value", snap => {
+    const data = snap.val();
+    if (!data) {
+      usersList.innerHTML = `<p class="muted">No hay usuarios cargados (excepto el admin fijo).</p>`;
+      return;
+    }
+
+    const rows = Object.values(data)
+      .filter(u => u && u.email)
+      .sort((a,b) => (a.email||"").localeCompare(b.email||""));
+
+    let html = `
+      <div class="divider"></div>
+      <div class="small muted" style="margin-bottom:8px;">
+        <b>Admin fijo:</b> ${escapeHtml(ADMIN_EMAIL)} (siempre admin)
+      </div>
+    `;
+
+    rows.forEach(u => {
+      const email = u.email || "";
+      const role = u.role || "operator";
+      const canDelete = email !== ADMIN_EMAIL; // por las dudas
+      html += `
+        <div class="card" style="margin:0 0 10px 0; padding:12px;">
+          <div class="row" style="justify-content:space-between;">
+            <div>
+              <div><b>${escapeHtml(email)}</b> <span class="pill">${escapeHtml(role)}</span></div>
+              <div class="small">${escapeHtml(u.createdAt || "")}</div>
+            </div>
+            <div>
+              <button class="danger" ${canDelete ? "" : "disabled"} onclick="deleteUser('${escapeHtml(email)}')">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    usersList.innerHTML = html;
+  });
+}
+
+async function addUser(){
+  const btn = document.getElementById("addUserBtn");
+  const email = String(document.getElementById("newUserEmail").value || "").trim().toLowerCase();
+  const role = String(document.getElementById("newUserRole").value || "operator");
+
+  if (!isEmailValid(email)) return alert("Email inválido.");
+  if (email === ADMIN_EMAIL) return alert("Ese email ya es admin fijo.");
+  if (!["admin","operator"].includes(role)) return alert("Rol inválido.");
+
+  btn.disabled = true;
+  btn.textContent = "Agregando…";
+
+  try {
+    const key = emailToKey(email);
+    await db.ref(`${USERS_PATH}/${key}`).set({
+      email,
+      role,
+      createdAt: new Date().toISOString()
+    });
+    document.getElementById("newUserEmail").value = "";
+    toast("Usuario agregado");
+  } catch (e) {
+    console.error(e);
+    alert("Error al agregar usuario: " + (e && e.message ? e.message : e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Agregar usuario";
+  }
+}
+
+async function deleteUser(email){
+  email = String(email || "").trim().toLowerCase();
+  if (!email) return;
+  if (email === ADMIN_EMAIL) return alert("No se puede eliminar el admin fijo.");
+  if (!confirm("¿Eliminar usuario " + email + "?")) return;
+
+  try {
+    const key = emailToKey(email);
+    await db.ref(`${USERS_PATH}/${key}`).remove();
+    toast("Usuario eliminado");
+  } catch (e) {
+    console.error(e);
+    alert("Error al eliminar usuario: " + (e && e.message ? e.message : e));
+  }
+}
+
+/* ================= Clientes (Admin) ================= */
+function loadClientsAdmin(){
   const container = document.getElementById("clients");
 
-  db.ref("clients").on("value", snap => {
-    container.innerHTML = "";
+  db.ref(CLIENTS_PATH).on("value", snap => {
     const data = snap.val();
-    if (!data) return container.innerHTML = "<p>Sin clientes</p>";
+    if (!data) {
+      container.innerHTML = `<p class="muted">Sin clientes</p>`;
+      return;
+    }
 
-    Object.values(data).forEach(c => {
-      if (role === "admin" || c.operator === email) {
-        renderClient(c, container);
-      }
+    container.innerHTML = "";
+    snap.forEach(child => {
+      const id = child.key;
+      const c = child.val();
+      renderClientCard(id, c, container);
     });
   });
 }
 
-function renderClient(c, container) {
+function renderClientCard(id, c, container){
   const div = document.createElement("div");
   div.className = "card";
 
-  const code = otplib.authenticator.generate(c.secret);
+  const safeName = escapeHtml(c?.name || "");
+  const safeOp = escapeHtml(c?.operator || "");
+  const safeQr = escapeHtml(c?.qrUrl || "");
+  const createdAt = escapeHtml(c?.createdAt || "");
+  const secret = String(c?.secret || "");
 
   div.innerHTML = `
-    <strong>${c.name}</strong>
-    <div class="totp" id="code-${c.secret}">${code}</div>
-    <div class="small">Operador: ${c.operator}</div>
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <div><b>${safeName}</b></div>
+        <div class="small">Operador: ${safeOp}</div>
+        <div class="small">Creado: ${createdAt}</div>
+        ${safeQr ? `<div class="small">QR: <span class="muted">${safeQr}</span></div>` : ""}
+        <div class="totp" id="code-${id}">------</div>
+      </div>
+      <div class="row">
+        <button class="danger" onclick="deleteClient('${id}', '${safeName}')">Eliminar</button>
+      </div>
+    </div>
   `;
 
-  setInterval(() => {
-    document.getElementById(`code-${c.secret}`).innerText =
-      otplib.authenticator.generate(c.secret);
-  }, 1000);
-
   container.appendChild(div);
+
+  // TOTP (admin lo ve)
+  // actualiza cada segundo
+  const codeEl = div.querySelector(`#code-${CSS.escape(id)}`);
+  const tick = () => {
+    if (!secret) { codeEl.textContent = "------"; return; }
+    try {
+      codeEl.textContent = otplib.authenticator.generate(secret);
+    } catch {
+      codeEl.textContent = "ERROR";
+    }
+  };
+  tick();
+  const interval = setInterval(tick, 1000);
+
+  // Si el nodo se reemplaza (re-render), cortamos el interval cuando se remueve
+  const obs = new MutationObserver(() => {
+    if (!document.body.contains(div)) {
+      clearInterval(interval);
+      obs.disconnect();
+    }
+  });
+  obs.observe(document.body, { childList:true, subtree:true });
 }
 
-/* ================= Crear Cliente ================= */
-function showCreate() {
-  document.getElementById("app").insertAdjacentHTML("afterbegin", `
-    <div class="card">
-      <h3>Nuevo cliente</h3>
-      <input id="cName" placeholder="Nombre">
-      <input id="cOperator" placeholder="Email operador">
-      <input id="cQr" placeholder="Link QR Google Drive">
-      <button onclick="saveClient()">Guardar</button>
-      <button class="secondary" onclick="location.reload()">Cancelar</button>
+async function deleteClient(id, name){
+  if (!confirm(`¿Eliminar cliente "${name || id}"?`)) return;
+  try {
+    await db.ref(`${CLIENTS_PATH}/${id}`).remove();
+    toast("Cliente eliminado");
+  } catch (e) {
+    console.error(e);
+    alert("Error al eliminar cliente: " + (e && e.message ? e.message : e));
+  }
+}
+
+/* ================= Crear Cliente (Admin) ================= */
+function showCreateClient() {
+  const app = document.getElementById("app");
+  // evita duplicar formulario si lo apretás varias veces
+  const existing = document.getElementById("createClientCard");
+  if (existing) { existing.scrollIntoView({behavior:"smooth"}); return; }
+
+  app.insertAdjacentHTML("afterbegin", `
+    <div class="card" id="createClientCard">
+      <h3 style="margin-top:0;">Nuevo cliente</h3>
+      <input id="cName" placeholder="Nombre (ej: American Confort)">
+      <input id="cOperator" placeholder="Email operador (ej: acco@replylatam.com)">
+      <input id="cQr" placeholder="Link QR Google Drive (view o share link)">
+      <button id="saveClientBtn" onclick="saveClient()">Guardar</button>
+      <button class="secondary" onclick="document.getElementById('createClientCard').remove()">Cancelar</button>
+      <div class="small muted" style="margin-top:10px;">
+        Tip: tu link ejemplo funciona: <span class="muted">https://drive.google.com/file/d/1S8BUFWCEa4vFoqJQA3bSLpyvXjIKcbES/view?usp=drive_link</span>
+      </div>
     </div>
   `);
 }
 
 async function saveClient() {
-  const name = cName.value;
-  const operator = cOperator.value;
-  const qrUrl = cQr.value;
+  const btn = document.getElementById("saveClientBtn");
+  const name = String(document.getElementById("cName").value || "").trim();
+  const operator = String(document.getElementById("cOperator").value || "").trim().toLowerCase();
+  const qrUrl = String(document.getElementById("cQr").value || "").trim();
 
-  const imgUrl = qrUrl.replace(/.*\/d\/([^/]+).*/, 
-    "https://drive.google.com/uc?export=view&id=$1");
+  if (!name) return alert("Falta el nombre.");
+  if (!isEmailValid(operator)) return alert("Email de operador inválido.");
+  if (!qrUrl) return alert("Falta el link del QR (Google Drive).");
 
-  const secret = await readQR(imgUrl);
-  if (!secret) return alert("No se pudo leer el QR");
+  btn.disabled = true;
+  btn.textContent = "Leyendo QR…";
 
-  db.ref("clients").push({
-    name,
-    operator,
-    qrUrl,
-    secret,
-    createdAt: new Date().toISOString()
-  });
+  try {
+    const fileId = extractDriveFileId(qrUrl);
+    if (!fileId) throw new Error("No pude extraer el FILE_ID del link de Google Drive.");
 
-  location.reload();
+    const secret = await readQRFromDriveFileId(fileId);
+    if (!secret) throw new Error("No se pudo leer el QR o no se encontró el parámetro secret en el otpauth://...");
+
+    btn.textContent = "Guardando…";
+
+    const payload = {
+      name,
+      operator,
+      qrUrl,
+      secret,
+      createdAt: new Date().toISOString()
+    };
+
+    // FIX: ahora esperamos el push y capturamos errores
+    await db.ref(CLIENTS_PATH).push(payload);
+
+    toast("Cliente guardado");
+    document.getElementById("createClientCard")?.remove();
+  } catch (e) {
+    console.error(e);
+    alert("Error al guardar cliente: " + (e && e.message ? e.message : e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Guardar";
+  }
 }
 
-/* ================= QR ================= */
-function readQR(url) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = img.width;
-      c.height = img.height;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(img,0,0);
-      const qr = jsQR(ctx.getImageData(0,0,c.width,c.height).data, c.width, c.height);
-      if (!qr) return resolve(null);
-      const match = qr.data.match(/secret=([A-Z0-9]+)/i);
-      resolve(match ? match[1] : null);
-    };
-    img.src = url;
-  });
+/* ================= Google Drive + QR ================= */
+// Extrae FILE_ID desde varios formatos:
+// - https://drive.google.com/file/d/<ID>/view...
+// - https://drive.google.com/open?id=<ID>
+// - https://drive.google.com/uc?id=<ID>&export=download
+function extractDriveFileId(url){
+  const u = String(url || "");
+
+  // /d/<id>/
+  let m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})\//);
+  if (m && m[1]) return m[1];
+
+  // id=<id>
+  m = u.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+
+  // .../d/<id> (sin trailing /)
+  m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+
+  return null;
+}
+
+function driveCandidates(fileId){
+  // Intentamos varias URLs para maximizar chances de CORS OK + carga directa
+  return [
+    `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+    `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`,
+    `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(fileId)}&export=download`,
+    `https://lh3.googleusercontent.com/d/${encodeURIComponent(fileId)}`
+  ];
+}
+
+async function readQRFromDriveFileId(fileId){
+  const urls = driveCandidates(fileId);
+
+  for (const url of urls) {
+    try {
+      const secret = await readQR(url);
+      if (secret) return secret;
+    } catch (e) {
+      // seguimos con la siguiente opción
+      console.warn("Falló lectura con:", url, e);
+    }
+  }
+  return null;
+}
+
+// Lee QR desde una URL (descarga como blob y decodifica en canvas)
+async function readQR(url) {
+  // Fetch → Blob para evitar canvas tainted cuando es posible
+  const res = await fetch(url, { method: "GET" });
+  if (!res.ok) throw new Error(`No se pudo descargar la imagen (${res.status})`);
+
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0);
+
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const qr = jsQR(imgData.data, canvas.width, canvas.height);
+
+  if (!qr || !qr.data) return null;
+
+  // Soportar:
+  // otpauth://totp/...?...&secret=XXXXX&...
+  // secret puede traer "=" y minúsculas
+  const match = String(qr.data).match(/(?:\?|&)secret=([^&\s]+)/i);
+  if (!match) return null;
+
+  // Normalizar (otplib tolera base32 con "=")
+  return decodeURIComponent(match[1]).trim();
 }
 </script>
-
 </body>
 </html>
