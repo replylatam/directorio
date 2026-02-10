@@ -1,39 +1,32 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Authenticator Cloud</title>
 
-  <!-- Fonts & Icons -->
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
-  <!-- Firebase v8 (UNA sola versión) -->
+  <!-- Firebase v8 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- TOTP -->
-  <script src="https://unpkg.com/otplib@12.0.1/otplib.umd.min.js"></script>
-
   <style>
     body {
-      font-family: Roboto, sans-serif;
+      font-family: Arial, sans-serif;
       background: #f2f4f8;
       margin: 0;
-      padding-top: 70px;
+      padding-top: 60px;
     }
-    .app-header {
+    header {
       position: fixed;
       top: 0; left: 0; right: 0;
-      background: white;
-      padding: 12px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      background: #fff;
+      padding: 15px;
       text-align: center;
       font-weight: bold;
+      box-shadow: 0 2px 5px rgba(0,0,0,.1);
     }
     .container {
-      max-width: 800px;
+      max-width: 600px;
       margin: auto;
       padding: 16px;
     }
@@ -42,124 +35,125 @@
       border-radius: 8px;
       padding: 16px;
       margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
     }
-    .client-name {
-      font-size: 18px;
+    .name {
       font-weight: bold;
+      margin-bottom: 8px;
     }
-    .totp {
+    .code {
       font-size: 32px;
-      letter-spacing: 2px;
-      margin-top: 10px;
+      letter-spacing: 3px;
     }
     .timer {
       font-size: 12px;
       color: #666;
-    }
-    .loader {
-      text-align: center;
-      color: #999;
-      margin-top: 40px;
     }
   </style>
 </head>
 
 <body>
 
-  <header class="app-header">
-    Authenticator Cloud
-  </header>
+<header>Authenticator Cloud</header>
 
-  <div class="container" id="app">
-    <div class="loader">Conectando…</div>
-  </div>
+<div class="container" id="app">
+  <p>Conectando…</p>
+</div>
 
-  <script>
-    /* =========================
-       Firebase Config
-    ========================== */
-    const firebaseConfig = {
-      apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-      authDomain: "directorio-c2ee0.firebaseapp.com",
-      databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
-      projectId: "directorio-c2ee0",
-      storageBucket: "directorio-c2ee0.appspot.com",
-      messagingSenderId: "1070600714275",
-      appId: "1:1070600714275:web:4d47c49235da784c04d996"
-    };
+<script>
+/* =========================
+   Firebase
+========================= */
+firebase.initializeApp({
+  apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+  authDomain: "directorio-c2ee0.firebaseapp.com",
+  databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
+  projectId: "directorio-c2ee0"
+});
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+const db = firebase.database();
+const app = document.getElementById("app");
 
-    const app = document.getElementById("app");
-    let timerInterval = null;
+/* =========================
+   BASE32 + HMAC + TOTP
+========================= */
+function base32ToBytes(base32) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "", bytes = [];
+  base32 = base32.replace(/=+$/, "");
+  for (let c of base32) {
+    bits += alphabet.indexOf(c.toUpperCase()).toString(2).padStart(5, "0");
+  }
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.substr(i, 8), 2));
+  }
+  return new Uint8Array(bytes);
+}
 
-    /* =========================
-       Realtime Listener
-    ========================== */
-    db.ref("clients").on("value", (snapshot) => {
-      const clients = snapshot.val();
-      app.innerHTML = "";
+async function generateTOTP(secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    base32ToBytes(secret),
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"]
+  );
 
-      if (!clients) {
-        app.innerHTML = "<p>No hay clientes cargados</p>";
-        return;
-      }
+  const epoch = Math.floor(Date.now() / 1000);
+  const counter = Math.floor(epoch / 30);
+  const buffer = new ArrayBuffer(8);
+  const view = new DataView(buffer);
+  view.setUint32(4, counter);
 
-      Object.keys(clients).forEach((id) => {
-        const client = clients[id];
-        if (!client.secret) return;
-        renderClient(client.name || id, client.secret);
-      });
-    });
+  const hmac = await crypto.subtle.sign("HMAC", key, buffer);
+  const hash = new Uint8Array(hmac);
 
-    /* =========================
-       Render
-    ========================== */
-    function renderClient(name, secret) {
-      const card = document.createElement("div");
-      card.className = "card";
+  const offset = hash[hash.length - 1] & 0xf;
+  const code = (
+    ((hash[offset] & 0x7f) << 24) |
+    ((hash[offset + 1] & 0xff) << 16) |
+    ((hash[offset + 2] & 0xff) << 8) |
+    (hash[offset + 3] & 0xff)
+  ) % 1000000;
 
-      const code = generateToken(secret);
+  return code.toString().padStart(6, "0");
+}
 
-      card.innerHTML = `
-        <div class="client-name">${name}</div>
-        <div class="totp" id="code-${name}">${formatCode(code)}</div>
-        <div class="timer" id="timer-${name}">--</div>
-      `;
+/* =========================
+   Render
+========================= */
+db.ref("clients").on("value", async snap => {
+  const clients = snap.val();
+  app.innerHTML = "";
 
-      app.appendChild(card);
+  if (!clients) {
+    app.innerHTML = "<p>No hay clientes</p>";
+    return;
+  }
 
-      startTicker(secret, name);
-    }
+  for (const id in clients) {
+    const c = clients[id];
+    if (!c.secret) continue;
 
-    /* =========================
-       TOTP
-    ========================== */
-    function generateToken(secret) {
-      otplib.authenticator.options = { step: 30, window: 0 };
-      return otplib.authenticator.generate(secret);
-    }
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="name">${c.name || id}</div>
+      <div class="code" id="code-${id}">------</div>
+      <div class="timer" id="timer-${id}"></div>
+    `;
+    app.appendChild(card);
 
-    function formatCode(code) {
-      return code.slice(0,3) + " " + code.slice(3);
-    }
-
-    function startTicker(secret, name) {
-      setInterval(() => {
-        const epoch = Math.floor(Date.now() / 1000);
-        const remaining = 30 - (epoch % 30);
-        const token = generateToken(secret);
-
-        const codeEl = document.getElementById(`code-${name}`);
-        const timerEl = document.getElementById(`timer-${name}`);
-
-        if (codeEl) codeEl.innerText = formatCode(token);
-        if (timerEl) timerEl.innerText = remaining + "s";
-      }, 1000);
-    }
-  </script>
+    setInterval(async () => {
+      const code = await generateTOTP(c.secret);
+      const left = 30 - (Math.floor(Date.now()/1000) % 30);
+      document.getElementById(`code-${id}`).innerText =
+        code.slice(0,3) + " " + code.slice(3);
+      document.getElementById(`timer-${id}`).innerText = left + "s";
+    }, 1000);
+  }
+});
+</script>
 
 </body>
 </html>
