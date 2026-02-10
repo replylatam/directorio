@@ -29,10 +29,7 @@
     margin-bottom:24px;
     gap:12px;
   }
-  .container {
-    max-width:1100px;
-    margin:auto;
-  }
+  .container { max-width:1100px; margin:auto; }
   .card {
     background:#020617;
     border:1px solid #1e293b;
@@ -40,16 +37,8 @@
     padding:16px;
     margin-bottom:12px;
   }
-  .row {
-    display:flex;
-    gap:12px;
-    flex-wrap:wrap;
-    align-items:center;
-  }
-  .col {
-    flex:1;
-    min-width:240px;
-  }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .col { flex:1; min-width:240px; }
   button {
     background:#6366f1;
     border:none;
@@ -62,8 +51,7 @@
   button.secondary { background:#1e293b; }
   button.danger { background:#ef4444; }
   button:disabled { opacity:.6; cursor:not-allowed; }
-
-  input, select {
+  input, select, textarea {
     width:100%;
     padding:10px;
     border-radius:10px;
@@ -73,10 +61,11 @@
     margin-bottom:10px;
     outline:none;
   }
+  textarea { min-height: 70px; resize: vertical; }
   .totp {
-    font-size:28px;
-    letter-spacing:3px;
-    margin-top:6px;
+    font-size:30px;
+    letter-spacing:4px;
+    margin-top:10px;
     font-variant-numeric: tabular-nums;
   }
   .small { font-size:12px; color:#94a3b8; }
@@ -90,18 +79,22 @@
     font-size:12px;
     color:#c7d2fe;
   }
-  .divider {
-    height:1px;
-    background:#1e293b;
-    margin:12px 0;
+  .divider { height:1px; background:#1e293b; margin:12px 0; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  @media(max-width: 900px){ .grid2{ grid-template-columns: 1fr; } }
+  .progress {
+    height: 10px;
+    border: 1px solid #1e293b;
+    border-radius: 999px;
+    overflow: hidden;
+    background: #0b1223;
+    margin-top: 10px;
   }
-  .grid2 {
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:12px;
-  }
-  @media(max-width: 900px){
-    .grid2{ grid-template-columns: 1fr; }
+  .bar {
+    height: 100%;
+    width: 0%;
+    background: #6366f1;
+    transition: width .2s linear;
   }
   .toast {
     position: fixed;
@@ -147,11 +140,11 @@ const auth = firebase.auth();
 const db = firebase.database();
 
 const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
-
-// Donde guardamos “usuarios permitidos” por email
-// usersByEmail/{emailKey} => { email, role, createdAt }
 const USERS_PATH = "usersByEmail";
 const CLIENTS_PATH = "clients";
+
+/* TOTP options */
+otplib.authenticator.options = { step: 30 };
 
 /* ================= Helpers ================= */
 function toast(msg) {
@@ -171,10 +164,8 @@ function escapeHtml(s) {
     .replaceAll("'","&#039;");
 }
 
-// Realtime DB no permite keys con ".", "#", "$", "[", "]", "/"
 function emailToKey(email) {
-  return String(email || "").trim().toLowerCase()
-    .replaceAll(".", ",");
+  return String(email || "").trim().toLowerCase().replaceAll(".", ",");
 }
 
 function isEmailValid(email){
@@ -188,6 +179,34 @@ function setWhoami(text){
 function showLoginUI(show){
   document.getElementById("loginBtn").style.display = show ? "inline-block" : "none";
   document.getElementById("logoutBtn").style.display = show ? "none" : "inline-block";
+}
+
+// Limpia/normaliza secrets para evitar "ERROR"
+function normalizeSecret(secret){
+  let s = String(secret || "").trim();
+  if (!s) return "";
+
+  // si viene otpauth://..., extraer secret
+  if (/^otpauth:\/\//i.test(s)) {
+    const m = s.match(/(?:\?|&)secret=([^&\s]+)/i);
+    if (m && m[1]) s = decodeURIComponent(m[1]);
+  }
+
+  // base32 típico: A-Z2-7 y a veces "=" de padding
+  s = s.replace(/\s+/g, "");
+  s = s.toUpperCase();
+  s = s.replace(/[^A-Z2-7=]/g, "");
+
+  // muchos secrets funcionan mejor sin "="
+  s = s.replace(/=+$/g, "");
+
+  return s;
+}
+
+function getRemaining(step=30){
+  const now = Math.floor(Date.now() / 1000);
+  const mod = now % step;
+  return step - mod;
 }
 
 /* ================= Login ================= */
@@ -208,7 +227,7 @@ auth.onAuthStateChanged(async user => {
     app.innerHTML = `
       <div class="card">
         <h2>Ingresar</h2>
-        <p class="muted">Primero iniciá sesión con Google. Luego se habilitan las opciones según tu mail.</p>
+        <p class="muted">Primero iniciá sesión con Google. Luego aparecen opciones según tu mail.</p>
         <div class="divider"></div>
         <button onclick="document.getElementById('loginBtn').click()">Login con Google</button>
       </div>
@@ -219,39 +238,14 @@ auth.onAuthStateChanged(async user => {
   showLoginUI(false);
   setWhoami(user.email);
 
-  // Determinar rol:
-  // - Admin fijo por email
-  // - Si no es admin, debe existir en usersByEmail, si no: no autorizado
-  let role = "operator";
+  // Rol (admin fijo por email)
+  const isAdmin = (user.email === ADMIN_EMAIL);
 
-  if (user.email === ADMIN_EMAIL) {
-    role = "admin";
-  } else {
-    const k = emailToKey(user.email);
-    const snap = await db.ref(`${USERS_PATH}/${k}`).get();
-    const data = snap.val();
-    if (!data) {
-      app.innerHTML = `
-        <div class="card">
-          <h2>Acceso no autorizado</h2>
-          <p class="muted">Tu email (<b>${escapeHtml(user.email)}</b>) no está habilitado. Pedile al admin que te agregue.</p>
-          <div class="divider"></div>
-          <button class="secondary" onclick="document.getElementById('logoutBtn').click()">Salir</button>
-        </div>
-      `;
-      // Cortamos sesión para que no quede “adentro”
-      setTimeout(() => auth.signOut(), 800);
-      return;
-    }
-    role = data.role || "operator";
-  }
-
-  // Por ahora: trabajar en vista admin
-  if (role !== "admin") {
+  if (!isAdmin) {
     app.innerHTML = `
       <div class="card">
         <h2>Panel Operador (pendiente)</h2>
-        <p class="muted">Por ahora vamos a trabajar solo la vista Admin.</p>
+        <p class="muted">Por ahora trabajamos solo la vista Admin.</p>
       </div>
     `;
     return;
@@ -306,7 +300,7 @@ function renderAdmin(user){
       <div>
         <div class="card">
           <h3 style="margin-top:0;">Clientes</h3>
-          <p class="small">Listado de clientes cargados. (Crear ya funciona arriba).</p>
+          <p class="small">Listado de clientes + códigos TOTP renovando cada 30s.</p>
           <div id="clients" class="small muted">Cargando clientes…</div>
         </div>
       </div>
@@ -342,7 +336,7 @@ function loadUsers(){
     rows.forEach(u => {
       const email = u.email || "";
       const role = u.role || "operator";
-      const canDelete = email !== ADMIN_EMAIL; // por las dudas
+      const canDelete = email !== ADMIN_EMAIL;
       html += `
         <div class="card" style="margin:0 0 10px 0; padding:12px;">
           <div class="row" style="justify-content:space-between;">
@@ -385,7 +379,11 @@ async function addUser(){
     toast("Usuario agregado");
   } catch (e) {
     console.error(e);
-    alert("Error al agregar usuario: " + (e && e.message ? e.message : e));
+    alert(
+      "Error al agregar usuario: " +
+      (e && e.message ? e.message : e) +
+      "\n\nTIP: esto es por Rules. Pegá las Rules que te pasé y recargá."
+    );
   } finally {
     btn.disabled = false;
     btn.textContent = "Agregar usuario";
@@ -436,16 +434,18 @@ function renderClientCard(id, c, container){
   const safeOp = escapeHtml(c?.operator || "");
   const safeQr = escapeHtml(c?.qrUrl || "");
   const createdAt = escapeHtml(c?.createdAt || "");
-  const secret = String(c?.secret || "");
+  const secretNorm = normalizeSecret(c?.secret || "");
 
   div.innerHTML = `
-    <div class="row" style="justify-content:space-between;">
-      <div>
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+      <div style="flex:1; min-width:260px;">
         <div><b>${safeName}</b></div>
         <div class="small">Operador: ${safeOp}</div>
         <div class="small">Creado: ${createdAt}</div>
         ${safeQr ? `<div class="small">QR: <span class="muted">${safeQr}</span></div>` : ""}
         <div class="totp" id="code-${id}">------</div>
+        <div class="small muted" id="ttl-${id}"></div>
+        <div class="progress"><div class="bar" id="bar-${id}"></div></div>
       </div>
       <div class="row">
         <button class="danger" onclick="deleteClient('${id}', '${safeName}')">Eliminar</button>
@@ -455,21 +455,33 @@ function renderClientCard(id, c, container){
 
   container.appendChild(div);
 
-  // TOTP (admin lo ve)
-  // actualiza cada segundo
   const codeEl = div.querySelector(`#code-${CSS.escape(id)}`);
+  const ttlEl  = div.querySelector(`#ttl-${CSS.escape(id)}`);
+  const barEl  = div.querySelector(`#bar-${CSS.escape(id)}`);
+
   const tick = () => {
-    if (!secret) { codeEl.textContent = "------"; return; }
+    const remain = getRemaining(30);
+    ttlEl.textContent = `Renueva en ${remain}s`;
+
+    const pct = ((30 - remain) / 30) * 100;
+    barEl.style.width = `${pct}%`;
+
+    if (!secretNorm) {
+      codeEl.textContent = "SIN SECRET";
+      return;
+    }
     try {
-      codeEl.textContent = otplib.authenticator.generate(secret);
-    } catch {
+      codeEl.textContent = otplib.authenticator.generate(secretNorm);
+    } catch (err) {
       codeEl.textContent = "ERROR";
+      // Si querés ver el motivo exacto:
+      // console.warn("TOTP error", id, secretNorm, err);
     }
   };
+
   tick();
   const interval = setInterval(tick, 1000);
 
-  // Si el nodo se reemplaza (re-render), cortamos el interval cuando se remueve
   const obs = new MutationObserver(() => {
     if (!document.body.contains(div)) {
       clearInterval(interval);
@@ -493,21 +505,26 @@ async function deleteClient(id, name){
 /* ================= Crear Cliente (Admin) ================= */
 function showCreateClient() {
   const app = document.getElementById("app");
-  // evita duplicar formulario si lo apretás varias veces
   const existing = document.getElementById("createClientCard");
   if (existing) { existing.scrollIntoView({behavior:"smooth"}); return; }
 
   app.insertAdjacentHTML("afterbegin", `
     <div class="card" id="createClientCard">
       <h3 style="margin-top:0;">Nuevo cliente</h3>
+
       <input id="cName" placeholder="Nombre (ej: American Confort)">
       <input id="cOperator" placeholder="Email operador (ej: acco@replylatam.com)">
       <input id="cQr" placeholder="Link QR Google Drive (view o share link)">
+
+      <div class="divider"></div>
+      <p class="small muted">
+        ⚠️ Google Drive suele bloquear CORS en GitHub Pages, y puede fallar leer el QR automáticamente.
+        Si falla, pegá acá el <b>secret</b> o el <b>otpauth://...</b>:
+      </p>
+      <textarea id="cSecret" placeholder="Opcional: secret (base32) o otpauth://totp/...&secret=XXXX"></textarea>
+
       <button id="saveClientBtn" onclick="saveClient()">Guardar</button>
       <button class="secondary" onclick="document.getElementById('createClientCard').remove()">Cancelar</button>
-      <div class="small muted" style="margin-top:10px;">
-        Tip: tu link ejemplo funciona: <span class="muted">https://drive.google.com/file/d/1S8BUFWCEa4vFoqJQA3bSLpyvXjIKcbES/view?usp=drive_link</span>
-      </div>
     </div>
   `);
 }
@@ -517,33 +534,44 @@ async function saveClient() {
   const name = String(document.getElementById("cName").value || "").trim();
   const operator = String(document.getElementById("cOperator").value || "").trim().toLowerCase();
   const qrUrl = String(document.getElementById("cQr").value || "").trim();
+  const secretManual = String(document.getElementById("cSecret").value || "").trim();
 
   if (!name) return alert("Falta el nombre.");
   if (!isEmailValid(operator)) return alert("Email de operador inválido.");
-  if (!qrUrl) return alert("Falta el link del QR (Google Drive).");
+  if (!qrUrl && !secretManual) return alert("Pegá un link de QR o un secret/otpauth manual.");
 
   btn.disabled = true;
-  btn.textContent = "Leyendo QR…";
+  btn.textContent = "Procesando…";
 
   try {
-    const fileId = extractDriveFileId(qrUrl);
-    if (!fileId) throw new Error("No pude extraer el FILE_ID del link de Google Drive.");
+    let secret = "";
 
-    const secret = await readQRFromDriveFileId(fileId);
-    if (!secret) throw new Error("No se pudo leer el QR o no se encontró el parámetro secret en el otpauth://...");
+    // 1) Si pegó secret/otpauth, usamos eso
+    if (secretManual) {
+      secret = normalizeSecret(secretManual);
+      if (!secret) throw new Error("El secret/otpauth manual no contiene un secret válido.");
+    } else {
+      // 2) Si no, intentamos leer el QR desde Drive (puede fallar por CORS)
+      btn.textContent = "Leyendo QR…";
+      const fileId = extractDriveFileId(qrUrl);
+      if (!fileId) throw new Error("No pude extraer el FILE_ID del link de Google Drive.");
+      secret = await readQRFromDriveFileId(fileId);
+      secret = normalizeSecret(secret);
+      if (!secret) throw new Error("No se pudo leer el QR (probable CORS). Pegá el secret u otpauth manualmente.");
+    }
+
+    // Validación rápida: que otplib pueda generar
+    try { otplib.authenticator.generate(secret); }
+    catch { throw new Error("El secret guardado no es válido para TOTP."); }
 
     btn.textContent = "Guardando…";
-
-    const payload = {
+    await db.ref(CLIENTS_PATH).push({
       name,
       operator,
       qrUrl,
       secret,
       createdAt: new Date().toISOString()
-    };
-
-    // FIX: ahora esperamos el push y capturamos errores
-    await db.ref(CLIENTS_PATH).push(payload);
+    });
 
     toast("Cliente guardado");
     document.getElementById("createClientCard")?.remove();
@@ -557,30 +585,18 @@ async function saveClient() {
 }
 
 /* ================= Google Drive + QR ================= */
-// Extrae FILE_ID desde varios formatos:
-// - https://drive.google.com/file/d/<ID>/view...
-// - https://drive.google.com/open?id=<ID>
-// - https://drive.google.com/uc?id=<ID>&export=download
 function extractDriveFileId(url){
   const u = String(url || "");
-
-  // /d/<id>/
   let m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})\//);
   if (m && m[1]) return m[1];
-
-  // id=<id>
   m = u.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
   if (m && m[1]) return m[1];
-
-  // .../d/<id> (sin trailing /)
   m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
   if (m && m[1]) return m[1];
-
   return null;
 }
 
 function driveCandidates(fileId){
-  // Intentamos varias URLs para maximizar chances de CORS OK + carga directa
   return [
     `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
     `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`,
@@ -591,22 +607,19 @@ function driveCandidates(fileId){
 
 async function readQRFromDriveFileId(fileId){
   const urls = driveCandidates(fileId);
-
   for (const url of urls) {
     try {
       const secret = await readQR(url);
       if (secret) return secret;
     } catch (e) {
-      // seguimos con la siguiente opción
       console.warn("Falló lectura con:", url, e);
     }
   }
   return null;
 }
 
-// Lee QR desde una URL (descarga como blob y decodifica en canvas)
 async function readQR(url) {
-  // Fetch → Blob para evitar canvas tainted cuando es posible
+  // Esto puede fallar por CORS (Drive no da Access-Control-Allow-Origin).
   const res = await fetch(url, { method: "GET" });
   if (!res.ok) throw new Error(`No se pudo descargar la imagen (${res.status})`);
 
@@ -625,13 +638,9 @@ async function readQR(url) {
 
   if (!qr || !qr.data) return null;
 
-  // Soportar:
-  // otpauth://totp/...?...&secret=XXXXX&...
-  // secret puede traer "=" y minúsculas
   const match = String(qr.data).match(/(?:\?|&)secret=([^&\s]+)/i);
   if (!match) return null;
 
-  // Normalizar (otplib tolera base32 con "=")
   return decodeURIComponent(match[1]).trim();
 }
 </script>
