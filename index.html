@@ -209,5 +209,51 @@
         }
     </script>
     <style> @keyframes spin { 100% { transform: rotate(360deg); } } </style>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+    authDomain: "directorio-c2ee0.firebaseapp.com",
+    databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
+    projectId: "directorio-c2ee0",
+    storageBucket: "directorio-c2ee0.appspot.com",
+    messagingSenderId: "1070600714275",
+    appId: "1:1070600714275:web:4d47c49235da784c04d996"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const clientsRef = ref(db, "clients");
+
+  onValue(clientsRef, (snapshot) => {
+    const data = snapshot.val();
+    console.log("CLIENTES:", data);
+
+    const list = document.getElementById("clients-list");
+    if (!list) return;
+
+    list.innerHTML = "";
+
+    if (!data) {
+      list.innerHTML = "<li>No hay clientes</li>";
+      return;
+    }
+
+    Object.keys(data).forEach((id) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <strong>${data[id].name || id}</strong>
+        <button>Obtener código</button>
+      `;
+      list.appendChild(li);
+    });
+  });
+</script>
+<ul id="clients-list"></ul>
+
+    
 </body>
 </html>
