@@ -31,22 +31,18 @@
 
 <script>
 
-  function renderApp(role) {
-    const app = document.getElementById("app")
+function renderApp(role, user) {
+  const app = document.getElementById("app");
 
-    if (role === "admin") {
-      app.innerHTML = `
-        <h2>Panel Admin</h2>
-        <p>Bienvenido Alan 👋</p>
-        <button onclick="alert('Clientes')">Ver clientes</button>
-      `
-    } else {
-      app.innerHTML = `
-        <h2>Panel Operador</h2>
-        <p>Acceso limitado</p>
-      `
-    }
-  }
+  app.innerHTML = `
+    <h2>${role === "admin" ? "Panel Admin" : "Panel Operador"}</h2>
+    <p>Bienvenido ${user.email} 👋</p>
+    <div id="clients">Cargando clientes…</div>
+  `;
+
+  loadClients(role, user.email);
+}
+
 /* =========================
    Firebase init
 ========================= */
@@ -97,7 +93,7 @@ auth.onAuthStateChanged(async (user) => {
   const role = await ensureUserRole(user);
   console.log("Rol del usuario:", role);
 
-  renderApp(role); // después lo usamos
+  renderApp(role, user);
 });
 
 
@@ -105,33 +101,36 @@ auth.onAuthStateChanged(async (user) => {
 /* =========================
    Cargar clientes
 ========================= */
-function loadClients(role) {
+function loadClients(role, userEmail) {
+  const container = document.getElementById("clients");
+
   db.ref("clients").on("value", (snap) => {
     const clients = snap.val();
-    app.innerHTML = "";
+    container.innerHTML = "";
 
     if (!clients) {
-      app.innerHTML = "Sin clientes";
+      container.innerHTML = "<p>Sin clientes</p>";
       return;
     }
 
     Object.keys(clients).forEach(id => {
       const c = clients[id];
 
-      // En el próximo paso filtramos por operador
-      renderClient(c.name || id);
+      if (role === "admin" || c.operator === userEmail) {
+        renderClient(c.name || id, container);
+      }
     });
   });
 }
 
-function renderClient(name) {
+function renderClient(name, container) {
   const div = document.createElement("div");
   div.className = "card";
   div.innerHTML = `
     <strong>${name}</strong><br>
     <button>Obtener código</button>
   `;
-  app.appendChild(div);
+  container.appendChild(div);
 }
 </script>
 
