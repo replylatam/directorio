@@ -1,126 +1,76 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<link rel="icon" href="data:,">
-<meta charset="UTF-8" />
-<title>Authenticator Cloud</title>
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8" />
+  <title>Authenticator Cloud</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:,">
 
-<!-- Firebase v8 -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <!-- Firebase v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-<!-- QR -->
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <!-- QR + TOTP -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/dist/otplib.umd.min.js"></script>
 
-<!-- ✅ TOTP (browser bundle que expone window.otplib) -->
-<script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/otplib-browser.js"></script>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; padding:24px; }
+    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; gap:12px; }
+    .container { max-width:1100px; margin:auto; }
+    .card { background:#020617; border:1px solid #1e293b; border-radius:14px; padding:16px; margin-bottom:12px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media(max-width: 900px){ .grid2{ grid-template-columns: 1fr; } }
 
-<style>
-  body {
-    font-family: Inter, system-ui, sans-serif;
-    background:#0f172a;
-    color:#e5e7eb;
-    margin:0;
-    padding:24px;
-  }
-  .top {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    margin-bottom:24px;
-    gap:12px;
-  }
-  .container { max-width:1100px; margin:auto; }
-  .card {
-    background:#020617;
-    border:1px solid #1e293b;
-    border-radius:14px;
-    padding:16px;
-    margin-bottom:12px;
-  }
-  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-  .col { flex:1; min-width:240px; }
-  button {
-    background:#6366f1;
-    border:none;
-    color:white;
-    padding:10px 14px;
-    border-radius:10px;
-    cursor:pointer;
-    font-weight:600;
-  }
-  button.secondary { background:#1e293b; }
-  button.danger { background:#ef4444; }
-  button:disabled { opacity:.6; cursor:not-allowed; }
-  input, select, textarea {
-    width:100%;
-    padding:10px;
-    border-radius:10px;
-    border:1px solid #1e293b;
-    background:#020617;
-    color:white;
-    margin-bottom:10px;
-    outline:none;
-  }
-  textarea { min-height: 70px; resize: vertical; }
-  .totp {
-    font-size:30px;
-    letter-spacing:4px;
-    margin-top:10px;
-    font-variant-numeric: tabular-nums;
-  }
-  .small { font-size:12px; color:#94a3b8; }
-  .muted { color:#94a3b8; }
-  .pill {
-    display:inline-block;
-    padding:4px 10px;
-    border-radius:999px;
-    border:1px solid #1e293b;
-    background:#0b1223;
-    font-size:12px;
-    color:#c7d2fe;
-  }
-  .divider { height:1px; background:#1e293b; margin:12px 0; }
-  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-  @media(max-width: 900px){ .grid2{ grid-template-columns: 1fr; } }
-  .progress {
-    height: 10px;
-    border: 1px solid #1e293b;
-    border-radius: 999px;
-    overflow: hidden;
-    background: #0b1223;
-    margin-top: 10px;
-  }
-  .bar {
-    height: 100%;
-    width: 0%;
-    background: #6366f1;
-    transition: width .2s linear;
-  }
-  .toast {
-    position: fixed;
-    bottom: 18px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #0b1223;
-    border: 1px solid #1e293b;
-    padding: 10px 14px;
-    border-radius: 12px;
-    color: #e5e7eb;
-    box-shadow: 0 10px 30px rgba(0,0,0,.35);
-    display:none;
-    max-width: 92vw;
-    z-index: 99;
-  }
-</style>
+    button { background:#6366f1; border:none; color:white; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.secondary { background:#1e293b; }
+    button.danger { background:#ef4444; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+
+    input, select, textarea {
+      width:100%;
+      padding:10px;
+      border-radius:10px;
+      border:1px solid #1e293b;
+      background:#020617;
+      color:white;
+      margin-bottom:10px;
+      outline:none;
+    }
+    textarea { min-height: 70px; resize: vertical; }
+
+    .totp { font-size:28px; letter-spacing:3px; margin-top:6px; font-variant-numeric: tabular-nums; }
+    .small { font-size:12px; color:#94a3b8; }
+    .muted { color:#94a3b8; }
+    .divider { height:1px; background:#1e293b; margin:12px 0; }
+    .pill { display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid #1e293b; background:#0b1223; font-size:12px; color:#c7d2fe; }
+    .progress { height:10px; border:1px solid #1e293b; border-radius:999px; overflow:hidden; background:#0b1223; margin-top:10px; }
+    .bar { height:100%; width:0%; background:#6366f1; transition: width .2s linear; }
+
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0b1223;
+      border: 1px solid #1e293b;
+      padding: 10px 14px;
+      border-radius: 12px;
+      color: #e5e7eb;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      display:none;
+      max-width: 92vw;
+      z-index: 99;
+    }
+  </style>
 </head>
 
 <body>
   <div class="top">
     <strong>Authenticator Cloud</strong>
-    <div class="row">
+    <div class="row" style="gap:10px; justify-content:flex-end;">
       <span class="small" id="whoami"></span>
       <button id="loginBtn">Login con Google</button>
       <button id="logoutBtn" class="secondary" style="display:none;">Salir</button>
@@ -146,22 +96,13 @@ const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
 const USERS_PATH = "usersByEmail";
 const CLIENTS_PATH = "clients";
 
-/* ================= ✅ TOTP init (robusto) ================= */
-const OTP = window.otplib?.authenticator;
-if (!OTP) {
-  // si esto pasa, el script de otplib no cargó
-  document.getElementById("app").innerHTML = `
-    <div class="card">
-      <h2>Error cargando librerías</h2>
-      <p class="muted">No se pudo cargar <b>otplib</b>. Revisá que tengas acceso a jsdelivr y recargá.</p>
-    </div>
-  `;
-  throw new Error("otplib no está definido (falló carga de otplib-browser.js)");
-}
+/* ================= TOTP ================= */
+const OTP = (window.otplib && window.otplib.authenticator) ? window.otplib.authenticator : null;
+if (!OTP) throw new Error("otplib no cargó. Revisá Network: otplib.umd.min.js");
 OTP.options = { step: 30 };
 
 /* ================= Helpers ================= */
-function toast(msg) {
+function toast(msg){
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.style.display = "block";
@@ -169,73 +110,68 @@ function toast(msg) {
   toast._t = setTimeout(() => t.style.display = "none", 2600);
 }
 
-function escapeHtml(s) {
-  return String(s || "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
+function setWhoami(text){ document.getElementById("whoami").textContent = text || ""; }
 
-function emailToKey(email) {
-  return String(email || "").trim().toLowerCase().replaceAll(".", ",");
+function showLoginUI(isLoggedIn){
+  document.getElementById("loginBtn").style.display = isLoggedIn ? "none" : "inline-block";
+  document.getElementById("logoutBtn").style.display = isLoggedIn ? "inline-block" : "none";
 }
 
 function isEmailValid(email){
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||"").trim());
 }
 
-function setWhoami(text){
-  document.getElementById("whoami").textContent = text || "";
+// keys RTDB no aceptan "."
+function emailToKey(email){
+  return String(email||"").trim().toLowerCase().replaceAll(".", ",");
 }
 
-function showLoginUI(show){
-  document.getElementById("loginBtn").style.display = show ? "inline-block" : "none";
-  document.getElementById("logoutBtn").style.display = show ? "none" : "inline-block";
+function escapeHtml(s){
+  return String(s||"")
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 
-function normalizeSecret(secret){
-  let s = String(secret || "").trim();
+function normalizeSecret(input){
+  let s = String(input||"").trim();
   if (!s) return "";
 
+  // Si viene otpauth://... extraer secret=
   if (/^otpauth:\/\//i.test(s)) {
     const m = s.match(/(?:\?|&)secret=([^&\s]+)/i);
     if (m && m[1]) s = decodeURIComponent(m[1]);
   }
 
-  s = s.replace(/\s+/g, "");
-  s = s.toUpperCase();
+  s = s.replace(/\s+/g, "").toUpperCase();
+  // base32 típico A-Z2-7, a veces "="
   s = s.replace(/[^A-Z2-7=]/g, "");
   s = s.replace(/=+$/g, "");
   return s;
 }
 
 function getRemaining(step=30){
-  const now = Math.floor(Date.now() / 1000);
-  const mod = now % step;
-  return step - mod;
+  const now = Math.floor(Date.now()/1000);
+  return step - (now % step);
 }
 
-/* ================= Login ================= */
+/* ================= Auth ================= */
 document.getElementById("loginBtn").onclick = () => {
   auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 };
-
 document.getElementById("logoutBtn").onclick = async () => {
   await auth.signOut();
 };
 
-auth.onAuthStateChanged(async user => {
+auth.onAuthStateChanged(user => {
   const app = document.getElementById("app");
 
   if (!user) {
-    showLoginUI(true);
+    showLoginUI(false);
     setWhoami("");
     app.innerHTML = `
       <div class="card">
         <h2>Ingresar</h2>
-        <p class="muted">Primero iniciá sesión con Google. Luego aparecen opciones según tu mail.</p>
+        <p class="muted">Iniciá sesión con Google para ver el panel.</p>
         <div class="divider"></div>
         <button onclick="document.getElementById('loginBtn').click()">Login con Google</button>
       </div>
@@ -243,15 +179,14 @@ auth.onAuthStateChanged(async user => {
     return;
   }
 
-  showLoginUI(false);
+  showLoginUI(true);
   setWhoami(user.email);
 
-  const isAdmin = (user.email === ADMIN_EMAIL);
-  if (!isAdmin) {
+  if (user.email !== ADMIN_EMAIL) {
     app.innerHTML = `
       <div class="card">
-        <h2>Panel Operador (pendiente)</h2>
-        <p class="muted">Por ahora trabajamos solo la vista Admin.</p>
+        <h2>Solo Admin (por ahora)</h2>
+        <p class="muted">Tu mail es <b>${escapeHtml(user.email)}</b>. Esta versión está enfocada en la vista Admin.</p>
       </div>
     `;
     return;
@@ -265,126 +200,102 @@ function renderAdmin(user){
   const app = document.getElementById("app");
   app.innerHTML = `
     <div class="card">
-      <div class="row" style="justify-content:space-between;">
+      <div class="row">
         <div>
           <h2 style="margin:0 0 6px 0;">Panel Admin</h2>
           <div class="small">${escapeHtml(user.email)} <span class="pill">admin</span></div>
         </div>
-        <div class="row">
+        <div>
           <button onclick="showCreateClient()">+ Nuevo cliente</button>
         </div>
       </div>
     </div>
 
     <div class="grid2">
-      <div>
-        <div class="card">
-          <h3 style="margin-top:0;">Usuarios</h3>
-          <p class="small">Acá agregás/eliminás usuarios habilitados (operadores u otros admins).</p>
+      <div class="card">
+        <h3 style="margin-top:0;">Usuarios</h3>
+        <p class="small">Agregá/eliminá usuarios (operadores u otros admins).</p>
+        <div class="divider"></div>
 
-          <div class="divider"></div>
+        <input id="uEmail" placeholder="Email (ej: acco@replylatam.com)">
+        <select id="uRole">
+          <option value="operator">operator</option>
+          <option value="admin">admin</option>
+        </select>
 
-          <div class="row">
-            <div class="col">
-              <input id="newUserEmail" placeholder="Email (ej: acco@replylatam.com)" />
-            </div>
-            <div style="min-width:200px;">
-              <select id="newUserRole">
-                <option value="operator">operator</option>
-                <option value="admin">admin</option>
-              </select>
-            </div>
-            <div style="min-width:160px;">
-              <button id="addUserBtn" onclick="addUser()">Agregar usuario</button>
-            </div>
-          </div>
+        <button id="addUserBtn" onclick="addUser()">Agregar usuario</button>
 
-          <div id="usersList" class="small muted">Cargando usuarios…</div>
-        </div>
+        <div class="divider"></div>
+        <div id="usersList" class="small muted">Cargando usuarios…</div>
       </div>
 
-      <div>
-        <div class="card">
-          <h3 style="margin-top:0;">Clientes</h3>
-          <p class="small">Listado de clientes + códigos TOTP renovando cada 30s.</p>
-          <div id="clients" class="small muted">Cargando clientes…</div>
-        </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Clientes</h3>
+        <p class="small">Códigos TOTP en vivo (renuevan cada 30s).</p>
+        <div class="divider"></div>
+        <div id="clients" class="small muted">Cargando clientes…</div>
       </div>
     </div>
   `;
 
   loadUsers();
-  loadClientsAdmin();
+  loadClients();
 }
 
-/* ================= Usuarios (Admin) ================= */
+/* ================= Users CRUD ================= */
 function loadUsers(){
-  const usersList = document.getElementById("usersList");
+  const el = document.getElementById("usersList");
 
   db.ref(USERS_PATH).on("value", snap => {
     const data = snap.val();
-    if (!data) {
-      usersList.innerHTML = `<p class="muted">No hay usuarios cargados (excepto el admin fijo).</p>`;
+    const users = data ? Object.entries(data).map(([k,v]) => ({key:k, ...v})) : [];
+
+    users.sort((a,b) => (a.email||"").localeCompare(b.email||""));
+
+    if (users.length === 0) {
+      el.innerHTML = `<div class="muted">No hay usuarios cargados.</div>`;
       return;
     }
 
-    const rows = Object.values(data)
-      .filter(u => u && u.email)
-      .sort((a,b) => (a.email||"").localeCompare(b.email||""));
-
-    let html = `
-      <div class="divider"></div>
-      <div class="small muted" style="margin-bottom:8px;">
-        <b>Admin fijo:</b> ${escapeHtml(ADMIN_EMAIL)} (siempre admin)
-      </div>
-    `;
-
-    rows.forEach(u => {
-      const email = u.email || "";
-      const role = u.role || "operator";
-      html += `
-        <div class="card" style="margin:0 0 10px 0; padding:12px;">
-          <div class="row" style="justify-content:space-between;">
-            <div>
-              <div><b>${escapeHtml(email)}</b> <span class="pill">${escapeHtml(role)}</span></div>
-              <div class="small">${escapeHtml(u.createdAt || "")}</div>
-            </div>
-            <div>
-              <button class="danger" onclick="deleteUser('${escapeHtml(email)}')">Eliminar</button>
-            </div>
+    el.innerHTML = users.map(u => `
+      <div class="card" style="padding:12px; margin-bottom:10px;">
+        <div class="row" style="align-items:flex-start;">
+          <div style="flex:1;">
+            <div><b>${escapeHtml(u.email||"")}</b> <span class="pill">${escapeHtml(u.role||"operator")}</span></div>
+            <div class="small">${escapeHtml(u.createdAt||"")}</div>
+          </div>
+          <div>
+            <button class="danger" onclick="deleteUser('${escapeHtml(u.email||"")}')">Eliminar</button>
           </div>
         </div>
-      `;
-    });
-
-    usersList.innerHTML = html;
+      </div>
+    `).join("");
   });
 }
 
 async function addUser(){
   const btn = document.getElementById("addUserBtn");
-  const email = String(document.getElementById("newUserEmail").value || "").trim().toLowerCase();
-  const role = String(document.getElementById("newUserRole").value || "operator");
+  const email = String(document.getElementById("uEmail").value||"").trim().toLowerCase();
+  const role = String(document.getElementById("uRole").value||"operator");
 
   if (!isEmailValid(email)) return alert("Email inválido.");
-  if (email === ADMIN_EMAIL) return alert("Ese email ya es admin fijo.");
   if (!["admin","operator"].includes(role)) return alert("Rol inválido.");
+  if (email === ADMIN_EMAIL) return alert("Ese email ya es admin fijo.");
 
   btn.disabled = true;
   btn.textContent = "Agregando…";
 
   try {
-    const key = emailToKey(email);
-    await db.ref(`${USERS_PATH}/${key}`).set({
+    await db.ref(`${USERS_PATH}/${emailToKey(email)}`).set({
       email,
       role,
       createdAt: new Date().toISOString()
     });
-    document.getElementById("newUserEmail").value = "";
+    document.getElementById("uEmail").value = "";
     toast("Usuario agregado");
   } catch (e) {
     console.error(e);
-    alert("Error al agregar usuario: " + (e && e.message ? e.message : e));
+    alert("Error al agregar usuario: " + (e?.message || e) + "\n\nSi dice PERMISSION_DENIED: son las Rules.");
   } finally {
     btn.disabled = false;
     btn.textContent = "Agregar usuario";
@@ -392,29 +303,28 @@ async function addUser(){
 }
 
 async function deleteUser(email){
-  email = String(email || "").trim().toLowerCase();
+  email = String(email||"").trim().toLowerCase();
   if (!email) return;
   if (email === ADMIN_EMAIL) return alert("No se puede eliminar el admin fijo.");
   if (!confirm("¿Eliminar usuario " + email + "?")) return;
 
   try {
-    const key = emailToKey(email);
-    await db.ref(`${USERS_PATH}/${key}`).remove();
+    await db.ref(`${USERS_PATH}/${emailToKey(email)}`).remove();
     toast("Usuario eliminado");
   } catch (e) {
     console.error(e);
-    alert("Error al eliminar usuario: " + (e && e.message ? e.message : e));
+    alert("Error al eliminar usuario: " + (e?.message || e));
   }
 }
 
-/* ================= Clientes (Admin) ================= */
-function loadClientsAdmin(){
+/* ================= Clients ================= */
+function loadClients(){
   const container = document.getElementById("clients");
 
   db.ref(CLIENTS_PATH).on("value", snap => {
     const data = snap.val();
     if (!data) {
-      container.innerHTML = `<p class="muted">Sin clientes</p>`;
+      container.innerHTML = `<div class="muted">Sin clientes</div>`;
       return;
     }
 
@@ -422,36 +332,31 @@ function loadClientsAdmin(){
     snap.forEach(child => {
       const id = child.key;
       const c = child.val();
-      renderClientCard(id, c, container);
+      renderClient(id, c, container);
     });
   });
 }
 
-function renderClientCard(id, c, container){
+function renderClient(id, c, container){
   const div = document.createElement("div");
   div.className = "card";
 
-  const safeName = escapeHtml(c?.name || "");
-  const safeOp = escapeHtml(c?.operator || "");
-  const safeQr = escapeHtml(c?.qrUrl || "");
+  const secret = normalizeSecret(c?.secret || "");
+  const name = escapeHtml(c?.name || "");
+  const operator = escapeHtml(c?.operator || "");
   const createdAt = escapeHtml(c?.createdAt || "");
-  const secretNorm = normalizeSecret(c?.secret || "");
 
   div.innerHTML = `
-    <div class="row" style="justify-content:space-between; align-items:flex-start;">
-      <div style="flex:1; min-width:260px;">
-        <div><b>${safeName}</b></div>
-        <div class="small">Operador: ${safeOp}</div>
-        <div class="small">Creado: ${createdAt}</div>
-        ${safeQr ? `<div class="small">QR: <span class="muted">${safeQr}</span></div>` : ""}
-        <div class="totp" id="code-${id}">------</div>
-        <div class="small muted" id="ttl-${id}"></div>
-        <div class="progress"><div class="bar" id="bar-${id}"></div></div>
-      </div>
-      <div class="row">
-        <button class="danger" onclick="deleteClient('${id}', '${safeName}')">Eliminar</button>
-      </div>
-    </div>
+    <b>${name}</b>
+    <div class="small">Operador: ${operator}</div>
+    <div class="small">Creado: ${createdAt}</div>
+
+    <div class="totp" id="code-${id}">------</div>
+    <div class="small muted" id="ttl-${id}"></div>
+    <div class="progress"><div class="bar" id="bar-${id}"></div></div>
+
+    <div class="divider"></div>
+    <button class="danger" onclick="deleteClient('${id}', '${name}')">Eliminar cliente</button>
   `;
 
   container.appendChild(div);
@@ -463,22 +368,25 @@ function renderClientCard(id, c, container){
   const tick = () => {
     const remain = getRemaining(30);
     ttlEl.textContent = `Renueva en ${remain}s`;
-    const pct = ((30 - remain) / 30) * 100;
-    barEl.style.width = `${pct}%`;
+    barEl.style.width = `${((30 - remain) / 30) * 100}%`;
 
-    if (!secretNorm) { codeEl.textContent = "SIN SECRET"; return; }
-    try { codeEl.textContent = OTP.generate(secretNorm); }
-    catch { codeEl.textContent = "ERROR"; }
+    if (!secret) {
+      codeEl.textContent = "SIN SECRET";
+      return;
+    }
+    try {
+      codeEl.textContent = OTP.generate(secret);
+    } catch {
+      codeEl.textContent = "ERROR";
+    }
   };
 
   tick();
   const interval = setInterval(tick, 1000);
 
+  // limpiar interval si se remueve el nodo
   const obs = new MutationObserver(() => {
-    if (!document.body.contains(div)) {
-      clearInterval(interval);
-      obs.disconnect();
-    }
+    if (!document.body.contains(div)) { clearInterval(interval); obs.disconnect(); }
   });
   obs.observe(document.body, { childList:true, subtree:true });
 }
@@ -490,45 +398,44 @@ async function deleteClient(id, name){
     toast("Cliente eliminado");
   } catch (e) {
     console.error(e);
-    alert("Error al eliminar cliente: " + (e && e.message ? e.message : e));
+    alert("Error al eliminar cliente: " + (e?.message || e));
   }
 }
 
-/* ================= Crear Cliente (Admin) ================= */
-function showCreateClient() {
-  const app = document.getElementById("app");
-  const existing = document.getElementById("createClientCard");
-  if (existing) { existing.scrollIntoView({behavior:"smooth"}); return; }
+/* ================= Create Client ================= */
+function showCreateClient(){
+  // evita duplicar
+  if (document.getElementById("createCard")) return;
 
-  app.insertAdjacentHTML("afterbegin", `
-    <div class="card" id="createClientCard">
+  document.getElementById("app").insertAdjacentHTML("afterbegin", `
+    <div class="card" id="createCard">
       <h3 style="margin-top:0;">Nuevo cliente</h3>
+
       <input id="cName" placeholder="Nombre (ej: American Confort)">
       <input id="cOperator" placeholder="Email operador (ej: acco@replylatam.com)">
-      <input id="cQr" placeholder="Link QR Google Drive (view o share link)">
+      <input id="cQr" placeholder="Link del QR (Google Drive)">
 
-      <div class="divider"></div>
       <p class="small muted">
-        Si falla leer el QR por CORS de Google Drive, pegá acá el <b>secret</b> o el <b>otpauth://...</b>:
+        Si Drive bloquea lectura (CORS), pegá abajo el <b>otpauth://...</b> o el <b>secret</b> (funciona 100%).
       </p>
-      <textarea id="cSecret" placeholder="Opcional: secret (base32) o otpauth://totp/...&secret=XXXX"></textarea>
+      <textarea id="cManual" placeholder="Opcional: otpauth://totp/...&secret=XXXX o secret base32"></textarea>
 
-      <button id="saveClientBtn" onclick="saveClient()">Guardar</button>
-      <button class="secondary" onclick="document.getElementById('createClientCard').remove()">Cancelar</button>
+      <button id="saveBtn" onclick="saveClient()">Guardar</button>
+      <button class="secondary" onclick="document.getElementById('createCard').remove()">Cancelar</button>
     </div>
   `);
 }
 
-async function saveClient() {
-  const btn = document.getElementById("saveClientBtn");
-  const name = String(document.getElementById("cName").value || "").trim();
-  const operator = String(document.getElementById("cOperator").value || "").trim().toLowerCase();
-  const qrUrl = String(document.getElementById("cQr").value || "").trim();
-  const secretManual = String(document.getElementById("cSecret").value || "").trim();
+async function saveClient(){
+  const btn = document.getElementById("saveBtn");
+  const name = String(document.getElementById("cName").value||"").trim();
+  const operator = String(document.getElementById("cOperator").value||"").trim().toLowerCase();
+  const qrUrl = String(document.getElementById("cQr").value||"").trim();
+  const manual = String(document.getElementById("cManual").value||"").trim();
 
-  if (!name) return alert("Falta el nombre.");
-  if (!isEmailValid(operator)) return alert("Email de operador inválido.");
-  if (!qrUrl && !secretManual) return alert("Pegá un link de QR o un secret/otpauth manual.");
+  if (!name) return alert("Falta nombre.");
+  if (!isEmailValid(operator)) return alert("Email operador inválido.");
+  if (!qrUrl && !manual) return alert("Pegá un link de Drive o un secret/otpauth manual.");
 
   btn.disabled = true;
   btn.textContent = "Procesando…";
@@ -536,34 +443,89 @@ async function saveClient() {
   try {
     let secret = "";
 
-    if (secretManual) {
-      secret = normalizeSecret(secretManual);
-      if (!secret) throw new Error("El secret/otpauth manual no contiene un secret válido.");
+    // 1) si hay manual, usamos eso
+    if (manual) {
+      secret = normalizeSecret(manual);
+      if (!secret) throw new Error("El secret/otpauth manual no es válido.");
     } else {
-      throw new Error("Lectura automática de QR desde Drive puede fallar por CORS. Pegá el secret/otpauth manualmente.");
+      // 2) intentamos leer QR de Drive (puede fallar por CORS)
+      btn.textContent = "Leyendo QR…";
+      const fileId = extractDriveFileId(qrUrl);
+      if (!fileId) throw new Error("No pude extraer el FILE_ID del link de Drive.");
+
+      const imgUrl = `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`;
+      secret = await readQR(imgUrl);
+      secret = normalizeSecret(secret);
+
+      if (!secret) {
+        throw new Error(
+          "No se pudo leer el QR desde Drive (probable CORS). " +
+          "Solución gratis: pegá el otpauth:// o el secret en el campo manual."
+        );
+      }
     }
 
-    // valida generación
+    // validar que genera
     OTP.generate(secret);
 
     btn.textContent = "Guardando…";
+
+    // ✅ FIX: await push, y si falla lo vemos
     await db.ref(CLIENTS_PATH).push({
       name,
       operator,
-      qrUrl,
+      qrUrl: qrUrl || "",
       secret,
       createdAt: new Date().toISOString()
     });
 
     toast("Cliente guardado");
-    document.getElementById("createClientCard")?.remove();
+    document.getElementById("createCard").remove();
   } catch (e) {
     console.error(e);
-    alert("Error al guardar cliente: " + (e && e.message ? e.message : e));
+    alert("Error al guardar cliente: " + (e?.message || e));
   } finally {
     btn.disabled = false;
     btn.textContent = "Guardar";
   }
+}
+
+/* ================= Drive ID + QR ================= */
+function extractDriveFileId(url){
+  const u = String(url||"");
+  let m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})\//);
+  if (m && m[1]) return m[1];
+  m = u.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+  m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m && m[1]) return m[1];
+  return null;
+}
+
+function readQR(url){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        const imgData = ctx.getImageData(0, 0, c.width, c.height);
+        const qr = jsQR(imgData.data, c.width, c.height);
+        if (!qr || !qr.data) return resolve(null);
+        const m = String(qr.data).match(/(?:\?|&)secret=([^&\s]+)/i);
+        resolve(m ? decodeURIComponent(m[1]) : null);
+      } catch (err) {
+        // esto suele pasar por canvas "tainted" (CORS)
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 </script>
 </body>
