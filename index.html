@@ -43,6 +43,27 @@ const db = firebase.database();
 const app = document.getElementById("app");
 const loginBtn = document.getElementById("loginBtn");
 
+  const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
+
+async function ensureUserRole(user) {
+  const userRef = firebase.database().ref("users/" + user.uid);
+  const snapshot = await userRef.get();
+
+  if (!snapshot.exists()) {
+    const role = user.email === ADMIN_EMAIL ? "admin" : "operator";
+
+    await userRef.set({
+      email: user.email,
+      role: role,
+      createdAt: new Date().toISOString()
+    });
+
+    return role;
+  }
+
+  return snapshot.val().role;
+}
+
 /* =========================
    Login
 ========================= */
@@ -52,25 +73,16 @@ loginBtn.onclick = () => {
 };
 
 auth.onAuthStateChanged(async (user) => {
-  if (!user) {
-    app.innerHTML = "No autenticado";
-    return;
-  }
+  if (!user) return;
 
-  loginBtn.style.display = "none";
-  const emailKey = user.email.replace(/\./g, "_");
+  const role = await ensureUserRole(user);
+  console.log("Rol del usuario:", role);
 
-  const roleSnap = await db.ref("users/" + emailKey).once("value");
-  const role = roleSnap.val()?.role;
-
-  if (!role) {
-    app.innerHTML = "<p>No tenés permisos</p>";
-    return;
-  }
-
-  loadClients(role);
+  renderApp(role); // después lo usamos
 });
 
+
+  
 /* =========================
    Cargar clientes
 ========================= */
