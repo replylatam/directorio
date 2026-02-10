@@ -10,9 +10,11 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-<!-- QR + TOTP -->
+<!-- QR -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/dist/otplib.umd.min.js"></script>
+
+<!-- ✅ TOTP (browser bundle que expone window.otplib) -->
+<script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/otplib-browser.js"></script>
 
 <style>
   body {
@@ -143,8 +145,19 @@ const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
 const USERS_PATH = "usersByEmail";
 const CLIENTS_PATH = "clients";
 
-/* TOTP options */
-otplib.authenticator.options = { step: 30 };
+/* ================= ✅ TOTP init (robusto) ================= */
+const OTP = window.otplib?.authenticator;
+if (!OTP) {
+  // si esto pasa, el script de otplib no cargó
+  document.getElementById("app").innerHTML = `
+    <div class="card">
+      <h2>Error cargando librerías</h2>
+      <p class="muted">No se pudo cargar <b>otplib</b>. Revisá que tengas acceso a jsdelivr y recargá.</p>
+    </div>
+  `;
+  throw new Error("otplib no está definido (falló carga de otplib-browser.js)");
+}
+OTP.options = { step: 30 };
 
 /* ================= Helpers ================= */
 function toast(msg) {
@@ -181,25 +194,19 @@ function showLoginUI(show){
   document.getElementById("logoutBtn").style.display = show ? "none" : "inline-block";
 }
 
-// Limpia/normaliza secrets para evitar "ERROR"
 function normalizeSecret(secret){
   let s = String(secret || "").trim();
   if (!s) return "";
 
-  // si viene otpauth://..., extraer secret
   if (/^otpauth:\/\//i.test(s)) {
     const m = s.match(/(?:\?|&)secret=([^&\s]+)/i);
     if (m && m[1]) s = decodeURIComponent(m[1]);
   }
 
-  // base32 típico: A-Z2-7 y a veces "=" de padding
   s = s.replace(/\s+/g, "");
   s = s.toUpperCase();
   s = s.replace(/[^A-Z2-7=]/g, "");
-
-  // muchos secrets funcionan mejor sin "="
   s = s.replace(/=+$/g, "");
-
   return s;
 }
 
@@ -238,9 +245,7 @@ auth.onAuthStateChanged(async user => {
   showLoginUI(false);
   setWhoami(user.email);
 
-  // Rol (admin fijo por email)
   const isAdmin = (user.email === ADMIN_EMAIL);
-
   if (!isAdmin) {
     app.innerHTML = `
       <div class="card">
@@ -336,7 +341,6 @@ function loadUsers(){
     rows.forEach(u => {
       const email = u.email || "";
       const role = u.role || "operator";
-      const canDelete = email !== ADMIN_EMAIL;
       html += `
         <div class="card" style="margin:0 0 10px 0; padding:12px;">
           <div class="row" style="justify-content:space-between;">
@@ -345,7 +349,7 @@ function loadUsers(){
               <div class="small">${escapeHtml(u.createdAt || "")}</div>
             </div>
             <div>
-              <button class="danger" ${canDelete ? "" : "disabled"} onclick="deleteUser('${escapeHtml(email)}')">Eliminar</button>
+              <button class="danger" onclick="deleteUser('${escapeHtml(email)}')">Eliminar</button>
             </div>
           </div>
         </div>
@@ -379,11 +383,7 @@ async function addUser(){
     toast("Usuario agregado");
   } catch (e) {
     console.error(e);
-    alert(
-      "Error al agregar usuario: " +
-      (e && e.message ? e.message : e) +
-      "\n\nTIP: esto es por Rules. Pegá las Rules que te pasé y recargá."
-    );
+    alert("Error al agregar usuario: " + (e && e.message ? e.message : e));
   } finally {
     btn.disabled = false;
     btn.textContent = "Agregar usuario";
@@ -462,21 +462,12 @@ function renderClientCard(id, c, container){
   const tick = () => {
     const remain = getRemaining(30);
     ttlEl.textContent = `Renueva en ${remain}s`;
-
     const pct = ((30 - remain) / 30) * 100;
     barEl.style.width = `${pct}%`;
 
-    if (!secretNorm) {
-      codeEl.textContent = "SIN SECRET";
-      return;
-    }
-    try {
-      codeEl.textContent = otplib.authenticator.generate(secretNorm);
-    } catch (err) {
-      codeEl.textContent = "ERROR";
-      // Si querés ver el motivo exacto:
-      // console.warn("TOTP error", id, secretNorm, err);
-    }
+    if (!secretNorm) { codeEl.textContent = "SIN SECRET"; return; }
+    try { codeEl.textContent = OTP.generate(secretNorm); }
+    catch { codeEl.textContent = "ERROR"; }
   };
 
   tick();
@@ -511,15 +502,13 @@ function showCreateClient() {
   app.insertAdjacentHTML("afterbegin", `
     <div class="card" id="createClientCard">
       <h3 style="margin-top:0;">Nuevo cliente</h3>
-
       <input id="cName" placeholder="Nombre (ej: American Confort)">
       <input id="cOperator" placeholder="Email operador (ej: acco@replylatam.com)">
       <input id="cQr" placeholder="Link QR Google Drive (view o share link)">
 
       <div class="divider"></div>
       <p class="small muted">
-        ⚠️ Google Drive suele bloquear CORS en GitHub Pages, y puede fallar leer el QR automáticamente.
-        Si falla, pegá acá el <b>secret</b> o el <b>otpauth://...</b>:
+        Si falla leer el QR por CORS de Google Drive, pegá acá el <b>secret</b> o el <b>otpauth://...</b>:
       </p>
       <textarea id="cSecret" placeholder="Opcional: secret (base32) o otpauth://totp/...&secret=XXXX"></textarea>
 
@@ -546,23 +535,15 @@ async function saveClient() {
   try {
     let secret = "";
 
-    // 1) Si pegó secret/otpauth, usamos eso
     if (secretManual) {
       secret = normalizeSecret(secretManual);
       if (!secret) throw new Error("El secret/otpauth manual no contiene un secret válido.");
     } else {
-      // 2) Si no, intentamos leer el QR desde Drive (puede fallar por CORS)
-      btn.textContent = "Leyendo QR…";
-      const fileId = extractDriveFileId(qrUrl);
-      if (!fileId) throw new Error("No pude extraer el FILE_ID del link de Google Drive.");
-      secret = await readQRFromDriveFileId(fileId);
-      secret = normalizeSecret(secret);
-      if (!secret) throw new Error("No se pudo leer el QR (probable CORS). Pegá el secret u otpauth manualmente.");
+      throw new Error("Lectura automática de QR desde Drive puede fallar por CORS. Pegá el secret/otpauth manualmente.");
     }
 
-    // Validación rápida: que otplib pueda generar
-    try { otplib.authenticator.generate(secret); }
-    catch { throw new Error("El secret guardado no es válido para TOTP."); }
+    // valida generación
+    OTP.generate(secret);
 
     btn.textContent = "Guardando…";
     await db.ref(CLIENTS_PATH).push({
@@ -582,66 +563,6 @@ async function saveClient() {
     btn.disabled = false;
     btn.textContent = "Guardar";
   }
-}
-
-/* ================= Google Drive + QR ================= */
-function extractDriveFileId(url){
-  const u = String(url || "");
-  let m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})\//);
-  if (m && m[1]) return m[1];
-  m = u.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
-  if (m && m[1]) return m[1];
-  m = u.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
-  if (m && m[1]) return m[1];
-  return null;
-}
-
-function driveCandidates(fileId){
-  return [
-    `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
-    `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`,
-    `https://drive.googleusercontent.com/uc?id=${encodeURIComponent(fileId)}&export=download`,
-    `https://lh3.googleusercontent.com/d/${encodeURIComponent(fileId)}`
-  ];
-}
-
-async function readQRFromDriveFileId(fileId){
-  const urls = driveCandidates(fileId);
-  for (const url of urls) {
-    try {
-      const secret = await readQR(url);
-      if (secret) return secret;
-    } catch (e) {
-      console.warn("Falló lectura con:", url, e);
-    }
-  }
-  return null;
-}
-
-async function readQR(url) {
-  // Esto puede fallar por CORS (Drive no da Access-Control-Allow-Origin).
-  const res = await fetch(url, { method: "GET" });
-  if (!res.ok) throw new Error(`No se pudo descargar la imagen (${res.status})`);
-
-  const blob = await res.blob();
-  const bitmap = await createImageBitmap(blob);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(bitmap, 0, 0);
-
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const qr = jsQR(imgData.data, canvas.width, canvas.height);
-
-  if (!qr || !qr.data) return null;
-
-  const match = String(qr.data).match(/(?:\?|&)secret=([^&\s]+)/i);
-  if (!match) return null;
-
-  return decodeURIComponent(match[1]).trim();
 }
 </script>
 </body>
