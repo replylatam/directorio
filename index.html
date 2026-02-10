@@ -2,67 +2,34 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Authenticator Cloud</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Firebase v8 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f2f4f8;
-      margin: 0;
-      padding-top: 60px;
-    }
-    header {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      background: #fff;
-      padding: 15px;
-      text-align: center;
-      font-weight: bold;
-      box-shadow: 0 2px 5px rgba(0,0,0,.1);
-    }
-    .container {
-      max-width: 600px;
-      margin: auto;
-      padding: 16px;
-    }
-    .card {
-      background: white;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.15);
-    }
-    .name {
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-    .code {
-      font-size: 32px;
-      letter-spacing: 3px;
-    }
-    .timer {
-      font-size: 12px;
-      color: #666;
-    }
+    body { font-family: Arial; background:#f2f4f8; margin:0; padding:20px; }
+    button { padding:10px 14px; cursor:pointer; }
+    .card { background:#fff; padding:16px; border-radius:8px; margin-bottom:10px; }
+    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
   </style>
 </head>
 
 <body>
 
-<header>Authenticator Cloud</header>
-
-<div class="container" id="app">
-  <p>Conectando…</p>
+<div class="top">
+  <strong>Authenticator Cloud</strong>
+  <button id="loginBtn">Login con Google</button>
 </div>
+
+<div id="app">Esperando login…</div>
 
 <script>
 /* =========================
-   Firebase
+   Firebase init
 ========================= */
 firebase.initializeApp({
   apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
@@ -71,88 +38,70 @@ firebase.initializeApp({
   projectId: "directorio-c2ee0"
 });
 
+const auth = firebase.auth();
 const db = firebase.database();
 const app = document.getElementById("app");
+const loginBtn = document.getElementById("loginBtn");
 
 /* =========================
-   BASE32 + HMAC + TOTP
+   Login
 ========================= */
-function base32ToBytes(base32) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "", bytes = [];
-  base32 = base32.replace(/=+$/, "");
-  for (let c of base32) {
-    bits += alphabet.indexOf(c.toUpperCase()).toString(2).padStart(5, "0");
-  }
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    bytes.push(parseInt(bits.substr(i, 8), 2));
-  }
-  return new Uint8Array(bytes);
-}
+loginBtn.onclick = () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider);
+};
 
-async function generateTOTP(secret) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    base32ToBytes(secret),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"]
-  );
-
-  const epoch = Math.floor(Date.now() / 1000);
-  const counter = Math.floor(epoch / 30);
-  const buffer = new ArrayBuffer(8);
-  const view = new DataView(buffer);
-  view.setUint32(4, counter);
-
-  const hmac = await crypto.subtle.sign("HMAC", key, buffer);
-  const hash = new Uint8Array(hmac);
-
-  const offset = hash[hash.length - 1] & 0xf;
-  const code = (
-    ((hash[offset] & 0x7f) << 24) |
-    ((hash[offset + 1] & 0xff) << 16) |
-    ((hash[offset + 2] & 0xff) << 8) |
-    (hash[offset + 3] & 0xff)
-  ) % 1000000;
-
-  return code.toString().padStart(6, "0");
-}
-
-/* =========================
-   Render
-========================= */
-db.ref("clients").on("value", async snap => {
-  const clients = snap.val();
-  app.innerHTML = "";
-
-  if (!clients) {
-    app.innerHTML = "<p>No hay clientes</p>";
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    app.innerHTML = "No autenticado";
     return;
   }
 
-  for (const id in clients) {
-    const c = clients[id];
-    if (!c.secret) continue;
+  loginBtn.style.display = "none";
+  const emailKey = user.email.replace(/\./g, "_");
 
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="name">${c.name || id}</div>
-      <div class="code" id="code-${id}">------</div>
-      <div class="timer" id="timer-${id}"></div>
-    `;
-    app.appendChild(card);
+  const roleSnap = await db.ref("users/" + emailKey).once("value");
+  const role = roleSnap.val()?.role;
 
-    setInterval(async () => {
-      const code = await generateTOTP(c.secret);
-      const left = 30 - (Math.floor(Date.now()/1000) % 30);
-      document.getElementById(`code-${id}`).innerText =
-        code.slice(0,3) + " " + code.slice(3);
-      document.getElementById(`timer-${id}`).innerText = left + "s";
-    }, 1000);
+  if (!role) {
+    app.innerHTML = "<p>No tenés permisos</p>";
+    return;
   }
+
+  loadClients(role);
 });
+
+/* =========================
+   Cargar clientes
+========================= */
+function loadClients(role) {
+  db.ref("clients").on("value", (snap) => {
+    const clients = snap.val();
+    app.innerHTML = "";
+
+    if (!clients) {
+      app.innerHTML = "Sin clientes";
+      return;
+    }
+
+    Object.keys(clients).forEach(id => {
+      const c = clients[id];
+
+      // En el próximo paso filtramos por operador
+      renderClient(c.name || id);
+    });
+  });
+}
+
+function renderClient(name) {
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = `
+    <strong>${name}</strong><br>
+    <button>Obtener código</button>
+  `;
+  app.appendChild(div);
+}
 </script>
 
 </body>
