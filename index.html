@@ -1,259 +1,165 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Authenticator Cloud</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <style>
-      :root {
-        --primary-color: #2c3e50; 
-        --accent-color: #1976d2;
-        --bg-color: #f2f4f8;
-        --card-bg: #ffffff;
-        --text-main: #333;
-      }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Authenticator Cloud</title>
 
-      body {
-        font-family: 'Roboto', sans-serif;
-        background-color: var(--bg-color);
-        margin: 0;
-        padding-top: 70px;
-        color: var(--text-main);
-        -webkit-font-smoothing: antialiased;
-      }
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-      /* HEADER */
-      .app-header {
-        position: fixed; top: 0; left: 0; right: 0;
-        background-color: white;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.08);
-        padding: 10px 15px;
-        z-index: 1000;
-        display: flex; align-items: center; justify-content: center;
-      }
+  <!-- Firebase v8 (UNA sola versión) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-      .search-container { width: 100%; max-width: 600px; position: relative; }
-      .search-input {
-        width: 100%; padding: 12px 40px 12px 15px; border-radius: 8px;
-        border: 1px solid #e0e0e0; background-color: #f5f5f5;
-        font-size: 16px; box-sizing: border-box;
-      }
-      .search-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #9e9e9e; }
+  <!-- TOTP -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/otplib/10.2.3/otplib-browser.js"></script>
 
-      /* CONTAINER */
-      .container { max-width: 800px; margin: 0 auto; padding: 10px; }
-
-      /* CARD */
-      .card {
-        background: var(--card-bg); border-radius: 10px; padding: 16px; margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 5px solid var(--accent-color);
-      }
-
-      .card-header {
-        display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 15px; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;
-      }
-      .client-name { font-size: 18px; font-weight: 700; color: var(--primary-color); }
-      .status-badge { font-size: 11px; background-color: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 12px; font-weight: 500; }
-
-      /* TOTP */
-      .totp-section { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; }
-      .totp-code { font-family: 'Roboto Mono', monospace; font-size: 32px; font-weight: 700; color: var(--primary-color); letter-spacing: 2px; }
-      .timer-ring { font-size: 12px; color: #666; font-weight: bold; width: 40px; text-align: center;}
-
-      /* Loader */
-      .loader { text-align: center; margin-top: 50px; color: #999; }
-      .error-msg { color: #d32f2f; text-align: center; margin-top: 20px; }
-    </style>
-
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/otplib/10.2.3/otplib-browser.js"></script>
+  <style>
+    body {
+      font-family: Roboto, sans-serif;
+      background: #f2f4f8;
+      margin: 0;
+      padding-top: 70px;
+    }
+    .app-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: white;
+      padding: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      text-align: center;
+      font-weight: bold;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      padding: 16px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .client-name {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .totp {
+      font-size: 32px;
+      letter-spacing: 2px;
+      margin-top: 10px;
+    }
+    .timer {
+      font-size: 12px;
+      color: #666;
+    }
+    .loader {
+      text-align: center;
+      color: #999;
+      margin-top: 40px;
+    }
+  </style>
 </head>
+
 <body>
 
-    <header class="app-header">
-        <div class="search-container">
-            <input type="text" class="search-input" placeholder="Buscar cuenta..." disabled>
-            <span class="material-icons search-icon">search</span>
-        </div>
-    </header>
+  <header class="app-header">
+    Authenticator Cloud
+  </header>
 
-    <div class="container" id="app">
-        <div class="loader">
-            <span class="material-icons" style="font-size: 48px; animation: spin 1s infinite linear;">sync</span>
-            <p>Conectando...</p>
-        </div>
-    </div>
+  <div class="container" id="app">
+    <div class="loader">Conectando…</div>
+  </div>
 
-    <script>
-        // CONFIGURACIÓN CORREGIDA (Sin 'import', usando sintaxis clásica)
-        const firebaseConfig = {
-            apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-            authDomain: "directorio-c2ee0.firebaseapp.com",
-            databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
-            projectId: "directorio-c2ee0",
-            storageBucket: "directorio-c2ee0.firebasestorage.app",
-            messagingSenderId: "1070600714275",
-            appId: "1:1070600714275:web:4d47c49235da784c04d996"
-        };
+  <script>
+    /* =========================
+       Firebase Config
+    ========================== */
+    const firebaseConfig = {
+      apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+      authDomain: "directorio-c2ee0.firebaseapp.com",
+      databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
+      projectId: "directorio-c2ee0",
+      storageBucket: "directorio-c2ee0.appspot.com",
+      messagingSenderId: "1070600714275",
+      appId: "1:1070600714275:web:4d47c49235da784c04d996"
+    };
 
-        // Inicializar Firebase
-        try {
-            firebase.initializeApp(firebaseConfig);
-            console.log("Firebase inicializado correctamente");
-        } catch (e) {
-            console.error("Error al inicializar Firebase:", e);
-        }
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-        const db = firebase.database();
-        const appContainer = document.getElementById('app');
-        let currentSecret = null;
-        let timeInterval = null;
+    const app = document.getElementById("app");
+    let timerInterval = null;
 
-        // Escuchar base de datos
-        const ref = db.ref('google_auth_data');
-        
-        ref.on('value', (snapshot) => {
-            const data = snapshot.val();
-            console.log("Datos recibidos:", data); // Para depurar en consola
-            
-            if (data && data.secret) {
-                currentSecret = data.secret;
-                renderCard(data.secret);
-                startTicker();
-            } else {
-                appContainer.innerHTML = `<div class="error-msg">
-                    <h3>Base de datos conectada pero vacía</h3>
-                    <p>Sube la imagen 'qr_auth.png' a Drive y ejecuta GitHub Actions.</p>
-                </div>`;
-            }
-        }, (error) => {
-            console.error("Error de lectura:", error);
-            appContainer.innerHTML = `<div class="error-msg">
-                <h3>Error de acceso</h3>
-                <p>Verifica las Reglas en Firebase.</p>
-                <small>${error.message}</small>
-            </div>`;
-        });
+    /* =========================
+       Realtime Listener
+    ========================== */
+    db.ref("clients").on("value", (snapshot) => {
+      const clients = snapshot.val();
+      app.innerHTML = "";
 
-        // Funciones Visuales
-        function renderCard(secret) {
-            const token = generateToken(secret);
-            appContainer.innerHTML = `
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="client-name">Cuenta Principal</div>
-                            <div style="font-size:12px; color:#777;">Google Authenticator</div>
-                        </div>
-                        <span class="status-badge">ACTIVO</span>
-                    </div>
-                    <div style="margin-bottom:15px;">
-                        <div style="display:flex; align-items:center; color:#555; font-size:14px; margin-bottom:5px;">
-                            <span class="material-icons" style="font-size:16px; margin-right:5px;">vpn_key</span>
-                            <span>Código de seguridad</span>
-                        </div>
-                        <div class="totp-section">
-                            <div id="code-display" class="totp-code">${formatCode(token)}</div>
-                            <div class="timer-ring"><span id="time-left">--</span></div>
-                        </div>
-                    </div>
-                    <div style="background:#f5f5f5; padding:8px; font-size:11px; color:#999; border-radius:4px;">
-                        Sincronizado vía Cloud
-                    </div>
-                </div>
-            `;
-        }
+      if (!clients) {
+        app.innerHTML = "<p>No hay clientes cargados</p>";
+        return;
+      }
 
-        function generateToken(secret) {
-            if (!otplib) return "ERR-LIB";
-            otplib.authenticator.options = { step: 30, window: 0 };
-            try { return otplib.authenticator.generate(secret); } catch (e) { return "ERROR"; }
-        }
+      Object.keys(clients).forEach((id) => {
+        const client = clients[id];
+        if (!client.secret) return;
+        renderClient(client.name || id, client.secret);
+      });
+    });
 
-        function formatCode(code) {
-            if (!code || code.length < 6) return "--- ---";
-            return code.slice(0, 3) + ' ' + code.slice(3);
-        }
+    /* =========================
+       Render
+    ========================== */
+    function renderClient(name, secret) {
+      const card = document.createElement("div");
+      card.className = "card";
 
-        function startTicker() {
-            if (timeInterval) clearInterval(timeInterval);
-            updateUI();
-            timeInterval = setInterval(updateUI, 1000);
-        }
+      const code = generateToken(secret);
 
-        function updateUI() {
-            if (!currentSecret) return;
-            const epoch = Math.floor(new Date().getTime() / 1000);
-            const timeLeft = 30 - (epoch % 30);
-            
-            const codeDisplay = document.getElementById('code-display');
-            const timeDisplay = document.getElementById('time-left');
+      card.innerHTML = `
+        <div class="client-name">${name}</div>
+        <div class="totp" id="code-${name}">${formatCode(code)}</div>
+        <div class="timer" id="timer-${name}">--</div>
+      `;
 
-            if (codeDisplay) {
-                const newToken = generateToken(currentSecret);
-                codeDisplay.innerText = formatCode(newToken);
-                
-                if (timeLeft <= 5) {
-                    codeDisplay.style.color = "#d32f2f";
-                    timeDisplay.style.color = "#d32f2f";
-                } else {
-                    codeDisplay.style.color = "#2c3e50";
-                    timeDisplay.style.color = "#666";
-                }
-                timeDisplay.innerText = timeLeft + "s";
-            }
-        }
-    </script>
-    <style> @keyframes spin { 100% { transform: rotate(360deg); } } </style>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+      app.appendChild(card);
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-    authDomain: "directorio-c2ee0.firebaseapp.com",
-    databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
-    projectId: "directorio-c2ee0",
-    storageBucket: "directorio-c2ee0.appspot.com",
-    messagingSenderId: "1070600714275",
-    appId: "1:1070600714275:web:4d47c49235da784c04d996"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-
-  const clientsRef = ref(db, "clients");
-
-  onValue(clientsRef, (snapshot) => {
-    const data = snapshot.val();
-    console.log("CLIENTES:", data);
-
-    const list = document.getElementById("clients-list");
-    if (!list) return;
-
-    list.innerHTML = "";
-
-    if (!data) {
-      list.innerHTML = "<li>No hay clientes</li>";
-      return;
+      startTicker(secret, name);
     }
 
-    Object.keys(data).forEach((id) => {
-      const li = document.createElement("li");
-      li.innerHTML = `
-        <strong>${data[id].name || id}</strong>
-        <button>Obtener código</button>
-      `;
-      list.appendChild(li);
-    });
-  });
-</script>
-<ul id="clients-list"></ul>
+    /* =========================
+       TOTP
+    ========================== */
+    function generateToken(secret) {
+      otplib.authenticator.options = { step: 30, window: 0 };
+      return otplib.authenticator.generate(secret);
+    }
 
-    
+    function formatCode(code) {
+      return code.slice(0,3) + " " + code.slice(3);
+    }
+
+    function startTicker(secret, name) {
+      setInterval(() => {
+        const epoch = Math.floor(Date.now() / 1000);
+        const remaining = 30 - (epoch % 30);
+        const token = generateToken(secret);
+
+        const codeEl = document.getElementById(`code-${name}`);
+        const timerEl = document.getElementById(`timer-${name}`);
+
+        if (codeEl) codeEl.innerText = formatCode(token);
+        if (timerEl) timerEl.innerText = remaining + "s";
+      }, 1000);
+    }
+  </script>
+
 </body>
 </html>
