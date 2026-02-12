@@ -1,216 +1,218 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Authenticator Cloud</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="data:,">
+<meta charset="UTF-8">
+<title>Authenticator Cloud</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Firebase v8 -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<!-- Firebase v8 -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- QR + TOTP -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/dist/otplib.umd.min.js"></script>
+<!-- QR + TOTP -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/dist/otplib.umd.min.js"></script>
 
-  <style>
-    body {
-      font-family: Inter, system-ui, sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
-      margin: 0;
-      padding: 24px;
-    }
-    .top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    .container {
-      max-width: 1100px;
-      margin: auto;
-    }
-    .card {
-      background: #020617;
-      border: 1px solid #1e293b;
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 12px;
-    }
-    button {
-      background: #6366f1;
-      border: none;
-      color: white;
-      padding: 10px 14px;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-    button.secondary {
-      background: #1e293b;
-    }
-    input {
-      width: 100%;
-      padding: 10px;
-      border-radius: 10px;
-      border: 1px solid #1e293b;
-      background: #020617;
-      color: white;
-      margin-bottom: 10px;
-    }
-    .totp {
-      font-size: 28px;
-      letter-spacing: 3px;
-      margin-top: 6px;
-    }
-    .small {
-      font-size: 12px;
-      color: #94a3b8;
-    }
-  </style>
+<style>
+body {
+  font-family: Inter, system-ui, sans-serif;
+  background:#0f172a;
+  color:#e5e7eb;
+  margin:0;
+  padding:24px;
+}
+.top {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:24px;
+}
+.container {
+  max-width:1100px;
+  margin:auto;
+}
+.card {
+  background:#020617;
+  border:1px solid #1e293b;
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:12px;
+}
+button {
+  background:#6366f1;
+  border:none;
+  color:white;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+}
+button.secondary {
+  background:#1e293b;
+}
+input {
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  border:1px solid #1e293b;
+  background:#020617;
+  color:white;
+  margin-bottom:10px;
+}
+.totp {
+  font-size:28px;
+  letter-spacing:3px;
+  margin-top:6px;
+}
+.small {
+  font-size:12px;
+  color:#94a3b8;
+}
+</style>
 </head>
 
 <body>
-  <div class="top">
-    <strong>Authenticator Cloud</strong>
-    <button id="loginBtn">Login con Google</button>
-  </div>
 
-  <div class="container" id="app">Cargando…</div>
+<div class="top">
+  <strong>Authenticator Cloud</strong>
+  <button id="loginBtn">Login con Google</button>
+</div>
 
-  <script>
-    /* ================= Firebase ================= */
-    firebase.initializeApp({
-      apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-      authDomain: "directorio-c2ee0.firebaseapp.com",
-      databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
-      projectId: "directorio-c2ee0"
+<div class="container" id="app">Cargando…</div>
+
+<script>
+/* ================= Firebase ================= */
+firebase.initializeApp({
+  apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+  authDomain: "directorio-c2ee0.firebaseapp.com",
+  databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
+  projectId: "directorio-c2ee0"
+});
+
+const auth = firebase.auth();
+const db = firebase.database();
+const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
+
+/* ================= Login ================= */
+document.getElementById("loginBtn").onclick = () => {
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+};
+
+auth.onAuthStateChanged(async user => {
+  if (!user) return;
+  const role = user.email === ADMIN_EMAIL ? "admin" : "operator";
+  renderApp(role, user);
+});
+
+/* ================= UI ================= */
+function renderApp(role, user) {
+  const app = document.getElementById("app");
+
+  app.innerHTML = `
+    <div class="card">
+      <h2>${role === "admin" ? "Panel Admin" : "Panel Operador"}</h2>
+      <p class="small">${user.email}</p>
+      ${role === "admin" ? `<button onclick="showCreate()">+ Nuevo cliente</button>` : ""}
+    </div>
+    <div id="clients"></div>
+  `;
+
+  loadClients(role, user.email);
+}
+
+/* ================= Clientes ================= */
+function loadClients(role, email) {
+  const container = document.getElementById("clients");
+
+  db.ref("clients").on("value", snap => {
+    container.innerHTML = "";
+    const data = snap.val();
+    if (!data) return container.innerHTML = "<p>Sin clientes</p>";
+
+    Object.values(data).forEach(c => {
+      if (role === "admin" || c.operator === email) {
+        renderClient(c, container);
+      }
     });
+  });
+}
 
-    const auth = firebase.auth();
-    const db = firebase.database();
-    const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
+function renderClient(c, container) {
+  const div = document.createElement("div");
+  div.className = "card";
 
-    /* ================= Login ================= */
-    document.getElementById("loginBtn").onclick = () => {
-      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  const code = otplib.authenticator.generate(c.secret);
+
+  div.innerHTML = `
+    <strong>${c.name}</strong>
+    <div class="totp" id="code-${c.secret}">${code}</div>
+    <div class="small">Operador: ${c.operator}</div>
+  `;
+
+  setInterval(() => {
+    document.getElementById(`code-${c.secret}`).innerText =
+      otplib.authenticator.generate(c.secret);
+  }, 1000);
+
+  container.appendChild(div);
+}
+
+/* ================= Crear Cliente ================= */
+function showCreate() {
+  document.getElementById("app").insertAdjacentHTML("afterbegin", `
+    <div class="card">
+      <h3>Nuevo cliente</h3>
+      <input id="cName" placeholder="Nombre">
+      <input id="cOperator" placeholder="Email operador">
+      <input id="cQr" placeholder="Link QR Google Drive">
+      <button onclick="saveClient()">Guardar</button>
+      <button class="secondary" onclick="location.reload()">Cancelar</button>
+    </div>
+  `);
+}
+
+async function saveClient() {
+  const name = cName.value;
+  const operator = cOperator.value;
+  const qrUrl = cQr.value;
+
+  const imgUrl = qrUrl.replace(/.*\/d\/([^/]+).*/, 
+    "https://drive.google.com/uc?export=view&id=$1");
+
+  const secret = await readQR(imgUrl);
+  if (!secret) return alert("No se pudo leer el QR");
+
+  db.ref("clients").push({
+    name,
+    operator,
+    qrUrl,
+    secret,
+    createdAt: new Date().toISOString()
+  });
+
+  location.reload();
+}
+
+/* ================= QR ================= */
+function readQR(url) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img,0,0);
+      const qr = jsQR(ctx.getImageData(0,0,c.width,c.height).data, c.width, c.height);
+      if (!qr) return resolve(null);
+      const match = qr.data.match(/secret=([A-Z0-9]+)/i);
+      resolve(match ? match[1] : null);
     };
+    img.src = url;
+  });
+}
+</script>
 
-    auth.onAuthStateChanged(async user => {
-      if (!user) return;
-      const role = user.email === ADMIN_EMAIL ? "admin" : "operator";
-      renderApp(role, user);
-    });
-
-    /* ================= UI ================= */
-    function renderApp(role, user) {
-      const app = document.getElementById("app");
-
-      app.innerHTML = `
-        <div class="card">
-          <h2>${role === "admin" ? "Panel Admin" : "Panel Operador"}</h2>
-          <p class="small">${user.email}</p>
-          ${role === "admin" ? '<button onclick="showCreate()">+ Nuevo cliente</button>' : ""}
-        </div>
-        <div id="clients"></div>
-      `;
-      loadClients(role, user.email);
-    }
-
-    /* ================= Clientes ================= */
-    function loadClients(role, email) {
-      const container = document.getElementById("clients");
-
-      db.ref("clients").on("value", snap => {
-        container.innerHTML = "";
-        const data = snap.val();
-        if (!data) return container.innerHTML = "<p>Sin clientes</p>";
-
-        Object.values(data).forEach(c => {
-          if (role === "admin" || c.operator === email) {
-            renderClient(c, container);
-          }
-        });
-      });
-    }
-
-    function renderClient(c, container) {
-      const div = document.createElement("div");
-      div.className = "card";
-
-      const code = otplib.authenticator.generate(c.secret);
-
-      div.innerHTML = `
-        <strong>${c.name}</strong>
-        <div class="totp" id="code-${c.secret}">${code}</div>
-        <div class="small">Operador: ${c.operator}</div>
-      `;
-
-      setInterval(() => {
-        document.getElementById(`code-${c.secret}`).innerText = otplib.authenticator.generate(c.secret);
-      }, 1000);
-
-      container.appendChild(div);
-    }
-
-    /* ================= Crear Cliente ================= */
-    function showCreate() {
-      document.getElementById("app").insertAdjacentHTML("afterbegin", `
-        <div class="card">
-          <h3>Nuevo cliente</h3>
-          <input id="cName" placeholder="Nombre">
-          <input id="cOperator" placeholder="Email operador">
-          <input id="cQr" placeholder="Link QR Google Drive">
-          <button onclick="saveClient()">Guardar</button>
-          <button class="secondary" onclick="location.reload()">Cancelar</button>
-        </div>
-      `);
-    }
-
-    async function saveClient() {
-      const name = cName.value;
-      const operator = cOperator.value;
-      const qrUrl = cQr.value;
-
-      const imgUrl = qrUrl.replace(/.*\/d\/([^/]+).*/, "https://drive.google.com/uc?export=view&id=$1");
-
-      const secret = await readQR(imgUrl);
-      if (!secret) return alert("No se pudo leer el QR");
-
-      db.ref("clients").push({
-        name,
-        operator,
-        qrUrl,
-        secret,
-        createdAt: new Date().toISOString()
-      });
-
-      location.reload();
-    }
-
-    /* ================= QR ================= */
-    function readQR(url) {
-      return new Promise(resolve => {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.onload = () => {
-          const c = document.createElement("canvas");
-          c.width = img.width;
-          c.height = img.height;
-          const ctx = c.getContext("2d");
-          ctx.drawImage(img, 0, 0);
-          const qr = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
-
-          if (!qr) return resolve(null);
-
-          const match = qr.data.match(/secret=([A-Z0-9]+)/i);
-          resolve(match ? match[1] : null);
-        };
-        img.src = url;
-      });
-    }
-  </script>
 </body>
 </html>
