@@ -201,7 +201,10 @@ async function extractSecret(){
 const qrUrl=document.getElementById("cQr").value.trim()
 if(!qrUrl)return alert("Pegá el link del QR")
 
-const imgUrl=qrUrl.replace(/.*\/d\/([^/]+).*/,"https://drive.google.com/uc?export=view&id=$1")
+const imgUrl = qrUrl.replace(
+  /.*\/d\/([^/]+).*/,
+  "https://drive.google.com/thumbnail?id=$1&sz=w1000"
+);
 const secret=await readQR(imgUrl)
 
 if(!secret){
