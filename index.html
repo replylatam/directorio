@@ -5,14 +5,13 @@
 <title>Authenticator Cloud</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-<!-- QR + TOTP -->
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/dist/otplib.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/otplib@12.0.1/otplib-browser.js"></script>
+
 
 <style>
 body {
@@ -141,21 +140,29 @@ function renderClient(c, container) {
   const div = document.createElement("div");
   div.className = "card";
 
-  const code = otplib.authenticator.generate(c.secret);
+  const codeId = "code-" + Math.random().toString(36).substring(2,9);
 
   div.innerHTML = `
     <strong>${c.name}</strong>
-    <div class="totp" id="code-${c.secret}">${code}</div>
+    <div class="totp" id="${codeId}">------</div>
     <div class="small">Operador: ${c.operator}</div>
   `;
 
-  setInterval(() => {
-    document.getElementById(`code-${c.secret}`).innerText =
-      otplib.authenticator.generate(c.secret);
-  }, 1000);
-
   container.appendChild(div);
+
+  function updateCode() {
+    try {
+      const token = otplib.authenticator.generate(c.secret);
+      document.getElementById(codeId).innerText = token;
+    } catch (e) {
+      console.error("Error generando TOTP:", e);
+    }
+  }
+
+  updateCode();
+  setInterval(updateCode, 1000);
 }
+
 
 /* ================= Crear Cliente ================= */
 function showCreate() {
