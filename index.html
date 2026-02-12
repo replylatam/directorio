@@ -8,305 +8,251 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
 <style>
-body {
-  font-family: Inter, system-ui, sans-serif;
-  background:#0f172a;
-  color:#e5e7eb;
-  margin:0;
-  padding:24px;
-}
-.top {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:24px;
-}
-.container {
-  max-width:1100px;
-  margin:auto;
-}
-.card {
-  background:#020617;
-  border:1px solid #1e293b;
-  border-radius:14px;
-  padding:16px;
-  margin-bottom:12px;
-}
-button {
-  background:#6366f1;
-  border:none;
-  color:white;
-  padding:10px 14px;
-  border-radius:10px;
-  cursor:pointer;
-}
-button.secondary {
-  background:#1e293b;
-}
-input {
-  width:100%;
-  padding:10px;
-  border-radius:10px;
-  border:1px solid #1e293b;
-  background:#020617;
-  color:white;
-  margin-bottom:10px;
-}
-.totp {
-  font-size:28px;
-  letter-spacing:3px;
-  margin-top:6px;
-}
-.small {
-  font-size:12px;
-  color:#94a3b8;
-}
+body{font-family:Inter,system-ui;background:#0f172a;color:#e5e7eb;margin:0;padding:24px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.container{max-width:1100px;margin:auto}
+.card{background:#020617;border:1px solid #1e293b;border-radius:14px;padding:16px;margin-bottom:12px}
+button{background:#6366f1;border:none;color:white;padding:10px 14px;border-radius:10px;cursor:pointer}
+button.secondary{background:#1e293b}
+input{width:100%;padding:10px;border-radius:10px;border:1px solid #1e293b;background:#020617;color:white;margin-bottom:10px}
+.totp{font-size:28px;letter-spacing:3px;margin-top:6px}
+.small{font-size:12px;color:#94a3b8}
 </style>
 </head>
-
 <body>
 
 <div class="top">
-  <strong>Authenticator Cloud</strong>
-  <button id="loginBtn">Login con Google</button>
+<strong>Authenticator Cloud</strong>
+<button id="loginBtn">Login con Google</button>
 </div>
 
 <div class="container" id="app">Cargando…</div>
 
 <script>
 
-  /* ================= TOTP (Google Authenticator compatible) ================= */
+/* ================= TOTP ================= */
 
-function base32ToUint8(base32) {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = "";
-  let result = [];
-
-  base32 = base32.replace(/=+$/, "").replace(/\s+/g, "").toUpperCase();
-
-  for (let i = 0; i < base32.length; i++) {
-    const val = alphabet.indexOf(base32[i]);
-    if (val === -1) continue;
-    bits += val.toString(2).padStart(5, "0");
-  }
-
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    result.push(parseInt(bits.substring(i, i + 8), 2));
-  }
-
-  return new Uint8Array(result);
+function base32ToUint8(base32){
+const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+let bits="",result=[]
+base32=base32.replace(/=+$/,"").replace(/\s+/g,"").toUpperCase()
+for(let i=0;i<base32.length;i++){
+const val=alphabet.indexOf(base32[i])
+if(val===-1)continue
+bits+=val.toString(2).padStart(5,"0")
+}
+for(let i=0;i+8<=bits.length;i+=8){
+result.push(parseInt(bits.substring(i,i+8),2))
+}
+return new Uint8Array(result)
 }
 
-async function generateTOTP(secret) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    base32ToUint8(secret),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"]
-  );
+async function generateTOTP(secret){
+const key=await crypto.subtle.importKey(
+"raw",
+base32ToUint8(secret),
+{name:"HMAC",hash:"SHA-1"},
+false,
+["sign"]
+)
 
-  const epoch = Math.floor(Date.now() / 1000);
-  const time = Math.floor(epoch / 30);
+const epoch=Math.floor(Date.now()/1000)
+const time=Math.floor(epoch/30)
 
-  const buffer = new ArrayBuffer(8);
-  const view = new DataView(buffer);
-  view.setUint32(4, time);
+const buffer=new ArrayBuffer(8)
+const view=new DataView(buffer)
+view.setUint32(4,time)
 
-  const hmac = await crypto.subtle.sign("HMAC", key, buffer);
-  const hmacBytes = new Uint8Array(hmac);
+const hmac=await crypto.subtle.sign("HMAC",key,buffer)
+const bytes=new Uint8Array(hmac)
+const offset=bytes[bytes.length-1]&0xf
 
-  const offset = hmacBytes[hmacBytes.length - 1] & 0xf;
+const code=((bytes[offset]&0x7f)<<24)|
+((bytes[offset+1]&0xff)<<16)|
+((bytes[offset+2]&0xff)<<8)|
+(bytes[offset+3]&0xff)
 
-  const code =
-    ((hmacBytes[offset] & 0x7f) << 24) |
-    ((hmacBytes[offset + 1] & 0xff) << 16) |
-    ((hmacBytes[offset + 2] & 0xff) << 8) |
-    (hmacBytes[offset + 3] & 0xff);
-
-  return (code % 1000000).toString().padStart(6, "0");
+return(code%1000000).toString().padStart(6,"0")
 }
 
 /* ================= Firebase ================= */
-firebase.initializeApp({
-  apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-  authDomain: "directorio-c2ee0.firebaseapp.com",
-  databaseURL: "https://directorio-c2ee0-default-rtdb.firebaseio.com",
-  projectId: "directorio-c2ee0"
-});
 
-const auth = firebase.auth();
-const db = firebase.database();
-const ADMIN_EMAIL = "alan.pereyra@replylatam.com";
+firebase.initializeApp({
+apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+authDomain:"directorio-c2ee0.firebaseapp.com",
+databaseURL:"https://directorio-c2ee0-default-rtdb.firebaseio.com",
+projectId:"directorio-c2ee0"
+})
+
+const auth=firebase.auth()
+const db=firebase.database()
+const ADMIN_EMAIL="alan.pereyra@replylatam.com"
 
 /* ================= Login ================= */
-document.getElementById("loginBtn").onclick = () => {
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-};
 
-auth.onAuthStateChanged(async user => {
-  if (!user) return;
-  const role = user.email === ADMIN_EMAIL ? "admin" : "operator";
-  renderApp(role, user);
-});
+document.getElementById("loginBtn").onclick=()=>{
+auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+}
+
+auth.onAuthStateChanged(user=>{
+if(!user)return
+const role=user.email===ADMIN_EMAIL?"admin":"operator"
+renderApp(role,user)
+})
 
 /* ================= UI ================= */
-function renderApp(role, user) {
-  const app = document.getElementById("app");
 
-  app.innerHTML = `
-    <div class="card">
-      <h2>${role === "admin" ? "Panel Admin" : "Panel Operador"}</h2>
-      <p class="small">${user.email}</p>
-      ${role === "admin" ? `<button onclick="showCreate()">+ Nuevo cliente</button>` : ""}
-    </div>
-    <div id="clients"></div>
-  `;
-
-  loadClients(role, user.email);
+function renderApp(role,user){
+const app=document.getElementById("app")
+app.innerHTML=`
+<div class="card">
+<h2>${role==="admin"?"Panel Admin":"Panel Operador"}</h2>
+<p class="small">${user.email}</p>
+${role==="admin"?`<button onclick="showCreate()">+ Nuevo cliente</button>`:""}
+</div>
+<div id="clients"></div>
+`
+loadClients(role,user.email)
 }
 
 /* ================= Clientes ================= */
-function loadClients(role, email) {
-  const container = document.getElementById("clients");
 
-  db.ref("clients").on("value", snap => {
-    container.innerHTML = "";
-    const data = snap.val();
-    if (!data) return container.innerHTML = "<p>Sin clientes</p>";
-
-    Object.values(data).forEach(c => {
-      if (role === "admin" || c.operator === email) {
-        renderClient(c, container);
-      }
-    });
-  });
+function loadClients(role,email){
+const container=document.getElementById("clients")
+db.ref("clients").on("value",snap=>{
+container.innerHTML=""
+const data=snap.val()
+if(!data){container.innerHTML="<p>Sin clientes</p>";return}
+Object.values(data).forEach(c=>{
+if(role==="admin"||c.operator===email){
+renderClient(c,container)
+}
+})
+})
 }
 
-function renderClient(c, container) {
-  const div = document.createElement("div");
-  div.className = "card";
+function renderClient(c,container){
+const div=document.createElement("div")
+div.className="card"
 
-  const codeId = "code-" + Math.random().toString(36).substring(2,9);
-  const timerId = "timer-" + Math.random().toString(36).substring(2,9);
+const codeId="code-"+Math.random().toString(36).substring(2,9)
+const timerId="timer-"+Math.random().toString(36).substring(2,9)
 
-  div.innerHTML = `
-    <strong>${c.name}</strong>
-    <div class="totp" id="${codeId}">------</div>
-    <div class="small">
-      Operador: ${c.operator || "No asignado"}<br>
-      Vence en: <span id="${timerId}">30</span>s
-    </div>
-  `;
+div.innerHTML=`
+<strong>${c.name}</strong>
+<div class="totp" id="${codeId}">------</div>
+<div class="small">
+Operador: ${c.operator||"No asignado"}<br>
+Vence en: <span id="${timerId}">30</span>s
+</div>
+`
+container.appendChild(div)
 
-  container.appendChild(div);
+async function updateCode(){
+if(!c.secret){
+document.getElementById(codeId).innerText="Sin secret"
+return
+}
+const token=await generateTOTP(c.secret)
+document.getElementById(codeId).innerText=token
+}
 
-  async function updateCode() {
-    if (!c.secret) {
-      document.getElementById(codeId).innerText = "Sin secret";
-      return;
-    }
+function updateTimer(){
+const seconds=30-(Math.floor(Date.now()/1000)%30)
+document.getElementById(timerId).innerText=seconds
+}
 
-    const token = await generateTOTP(c.secret);
-    document.getElementById(codeId).innerText = token;
-  }
+updateCode()
+updateTimer()
 
-  function updateTimer() {
-    const seconds = 30 - (Math.floor(Date.now() / 1000) % 30);
-    document.getElementById(timerId).innerText = seconds;
-  }
+setInterval(updateTimer,1000)
 
-  updateCode();
-  updateTimer();
-
-  setInterval(updateTimer, 1000);
-
-  setInterval(() => {
-  const seconds = Math.floor(Date.now() / 1000);
-  if (seconds % 30 === 0) {
-    updateCode();
-  }
-}, 1000);
-
-
-
+setInterval(()=>{
+const seconds=Math.floor(Date.now()/1000)
+if(seconds%30===0){
+updateCode()
+}
+},1000)
+}
 
 /* ================= Crear Cliente ================= */
-function showCreate() {
-  document.getElementById("app").insertAdjacentHTML("afterbegin", `
-    <div class="card">
-      <h3>Nuevo cliente</h3>
-      <input id="cName" placeholder="Nombre">
-      <input id="cOperator" placeholder="Email operador">
-      <input id="cQr" placeholder="Link QR Google Drive">
-      <button onclick="saveClient()">Guardar</button>
-      <button class="secondary" onclick="location.reload()">Cancelar</button>
-    </div>
-  `);
+
+function showCreate(){
+document.getElementById("app").insertAdjacentHTML("afterbegin",`
+<div class="card">
+<h3>Nuevo cliente</h3>
+<input id="cName" placeholder="Nombre">
+<input id="cOperator" placeholder="Email operador">
+<input id="cQr" placeholder="Link QR Google Drive">
+<button onclick="extractSecret()">Extraer SECRET</button>
+<div id="secretPreview" class="small"></div>
+<button onclick="saveClient()">Guardar cliente</button>
+<button class="secondary" onclick="location.reload()">Cancelar</button>
+</div>
+`)
 }
 
-async function saveClient() {
-  try {
-    const name = cName.value.trim();
-    const operator = cOperator.value.trim();
-    const qrUrl = cQr.value.trim();
+let extractedSecret=null
 
-    if (!name || !operator || !qrUrl) {
-      return alert("Completá todos los campos");
-    }
+async function extractSecret(){
+const qrUrl=document.getElementById("cQr").value.trim()
+if(!qrUrl)return alert("Pegá el link del QR")
 
-    const imgUrl = qrUrl.replace(/.*\/d\/([^/]+).*/, 
-      "https://drive.google.com/uc?export=view&id=$1");
+const imgUrl=qrUrl.replace(/.*\/d\/([^/]+).*/,"https://drive.google.com/uc?export=view&id=$1")
+const secret=await readQR(imgUrl)
 
-    const secret = await readQR(imgUrl);
-
-    if (!secret) {
-      alert("No se pudo leer el QR. Revisá permisos del archivo.");
-      return;
-    }
-
-    await db.ref("clients").push({
-      name,
-      operator,
-      qrUrl,
-      secret,
-      createdAt: new Date().toISOString()
-    });
-
-    alert("Cliente creado correctamente");
-    location.reload();
-
-  } catch (err) {
-    console.error(err);
-    alert("Error al guardar cliente");
-  }
+if(!secret){
+alert("No se pudo leer el QR. Verificá permisos.")
+return
 }
 
+extractedSecret=secret
+document.getElementById("secretPreview").innerText="SECRET detectado: "+secret
+}
+
+async function saveClient(){
+if(!extractedSecret)return alert("Primero extraé el SECRET")
+
+const name=document.getElementById("cName").value.trim()
+const operator=document.getElementById("cOperator").value.trim()
+
+if(!name||!operator)return alert("Completá todos los campos")
+
+await db.ref("clients").push({
+name,
+operator,
+secret:extractedSecret,
+createdAt:new Date().toISOString()
+})
+
+alert("Cliente creado correctamente")
+location.reload()
+}
 
 /* ================= QR ================= */
-function readQR(url) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = img.width;
-      c.height = img.height;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(img,0,0);
-      const qr = jsQR(ctx.getImageData(0,0,c.width,c.height).data, c.width, c.height);
-      if (!qr) return resolve(null);
-      const match = qr.data.match(/secret=([A-Z0-9]+)/i);
-      resolve(match ? match[1] : null);
-    };
-    img.src = url;
-  });
-}
-</script>
 
+function readQR(url){
+return new Promise(resolve=>{
+const img=new Image()
+img.crossOrigin="anonymous"
+img.onload=()=>{
+const c=document.createElement("canvas")
+c.width=img.width
+c.height=img.height
+const ctx=c.getContext("2d")
+ctx.drawImage(img,0,0)
+const qr=jsQR(ctx.getImageData(0,0,c.width,c.height).data,c.width,c.height)
+if(!qr)return resolve(null)
+const match=qr.data.match(/secret=([A-Z0-9]+)/i)
+resolve(match?match[1]:null)
+}
+img.src=url
+})
+}
+
+</script>
 </body>
 </html>
