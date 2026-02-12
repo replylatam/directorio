@@ -10,7 +10,6 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@otplib/browser@12.0.1/index.umd.min.js"></script>
 
 <style>
 body {
@@ -79,6 +78,59 @@ input {
 <div class="container" id="app">Cargando…</div>
 
 <script>
+
+  /* ================= TOTP (Google Authenticator compatible) ================= */
+
+function base32ToUint8(base32) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  let result = [];
+
+  base32 = base32.replace(/=+$/, "").replace(/\s+/g, "").toUpperCase();
+
+  for (let i = 0; i < base32.length; i++) {
+    const val = alphabet.indexOf(base32[i]);
+    if (val === -1) continue;
+    bits += val.toString(2).padStart(5, "0");
+  }
+
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    result.push(parseInt(bits.substring(i, i + 8), 2));
+  }
+
+  return new Uint8Array(result);
+}
+
+async function generateTOTP(secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    base32ToUint8(secret),
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"]
+  );
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const time = Math.floor(epoch / 30);
+
+  const buffer = new ArrayBuffer(8);
+  const view = new DataView(buffer);
+  view.setUint32(4, time);
+
+  const hmac = await crypto.subtle.sign("HMAC", key, buffer);
+  const hmacBytes = new Uint8Array(hmac);
+
+  const offset = hmacBytes[hmacBytes.length - 1] & 0xf;
+
+  const code =
+    ((hmacBytes[offset] & 0x7f) << 24) |
+    ((hmacBytes[offset + 1] & 0xff) << 16) |
+    ((hmacBytes[offset + 2] & 0xff) << 8) |
+    (hmacBytes[offset + 3] & 0xff);
+
+  return (code % 1000000).toString().padStart(6, "0");
+}
+
 /* ================= Firebase ================= */
 firebase.initializeApp({
   apiKey: "AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
@@ -140,32 +192,47 @@ function renderClient(c, container) {
   div.className = "card";
 
   const codeId = "code-" + Math.random().toString(36).substring(2,9);
+  const timerId = "timer-" + Math.random().toString(36).substring(2,9);
 
   div.innerHTML = `
     <strong>${c.name}</strong>
     <div class="totp" id="${codeId}">------</div>
-    <div class="small">Operador: ${c.operator}</div>
+    <div class="small">
+      Operador: ${c.operator || "No asignado"}<br>
+      Vence en: <span id="${timerId}">30</span>s
+    </div>
   `;
 
   container.appendChild(div);
 
-  function updateCode() {
-    try {
-      if (!c.secret) {
-  document.getElementById(codeId).innerText = "Sin secret";
-  return;
-}
-
-const token = otplib.authenticator.generate(c.secret);
-      document.getElementById(codeId).innerText = token;
-    } catch (e) {
-      console.error("Error generando TOTP:", e);
+  async function updateCode() {
+    if (!c.secret) {
+      document.getElementById(codeId).innerText = "Sin secret";
+      return;
     }
+
+    const token = await generateTOTP(c.secret);
+    document.getElementById(codeId).innerText = token;
+  }
+
+  function updateTimer() {
+    const seconds = 30 - (Math.floor(Date.now() / 1000) % 30);
+    document.getElementById(timerId).innerText = seconds;
   }
 
   updateCode();
-  setInterval(updateCode, 3000);
-}
+  updateTimer();
+
+  setInterval(updateTimer, 1000);
+
+  setInterval(() => {
+  const seconds = Math.floor(Date.now() / 1000);
+  if (seconds % 30 === 0) {
+    updateCode();
+  }
+}, 1000);
+
+
 
 
 /* ================= Crear Cliente ================= */
@@ -183,26 +250,42 @@ function showCreate() {
 }
 
 async function saveClient() {
-  const name = cName.value;
-  const operator = cOperator.value;
-  const qrUrl = cQr.value;
+  try {
+    const name = cName.value.trim();
+    const operator = cOperator.value.trim();
+    const qrUrl = cQr.value.trim();
 
-  const imgUrl = qrUrl.replace(/.*\/d\/([^/]+).*/, 
-    "https://drive.google.com/uc?export=view&id=$1");
+    if (!name || !operator || !qrUrl) {
+      return alert("Completá todos los campos");
+    }
 
-  const secret = await readQR(imgUrl);
-  if (!secret) return alert("No se pudo leer el QR");
+    const imgUrl = qrUrl.replace(/.*\/d\/([^/]+).*/, 
+      "https://drive.google.com/uc?export=view&id=$1");
 
-  db.ref("clients").push({
-    name,
-    operator,
-    qrUrl,
-    secret,
-    createdAt: new Date().toISOString()
-  });
+    const secret = await readQR(imgUrl);
 
-  location.reload();
+    if (!secret) {
+      alert("No se pudo leer el QR. Revisá permisos del archivo.");
+      return;
+    }
+
+    await db.ref("clients").push({
+      name,
+      operator,
+      qrUrl,
+      secret,
+      createdAt: new Date().toISOString()
+    });
+
+    alert("Cliente creado correctamente");
+    location.reload();
+
+  } catch (err) {
+    console.error(err);
+    alert("Error al guardar cliente");
+  }
 }
+
 
 /* ================= QR ================= */
 function readQR(url) {
