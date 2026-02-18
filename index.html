@@ -94,12 +94,17 @@ let currentUser=null
 let currentRole=null
 let clientSearchTerm=""
 let extractedSecret=null
+let clientsCache={}
+let revealedTotpByClient={}
+let totpIntervalsById={}
 
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
 const SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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" // webhook Slack para alertas
 const SLACK_BOT_TOKEN="" // opcional: xoxb-... para responder en hilo al resolver
 const SLACK_CHANNEL_ID="" // opcional: ID de canal (ej: C0123456789)
+const SHEET_ID="1sY-int3hJ1maLwYFyt9NLXG9OZoHUO7Ac9i9zMmWMw4" // referencia de planilla
+const SHEETS_WEBHOOK_URL="" // pegar URL de Web App de Apps Script para registrar en Google Sheets
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -129,6 +134,25 @@ async function generateTOTP(secret){
 
 function emailKey(email){return (email||"").toLowerCase().replace(/[.#$/\[\]]/g,"_")}
 function htmlEscape(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
+
+async function logActivity(eventType, details={}){
+  const payload={
+    eventType,
+    email:currentUser?.email||"sin-usuario",
+    role:currentRole||"sin-rol",
+    timestampIso:new Date().toISOString(),
+    timestampLocal:new Date().toLocaleString(),
+    sheetId:SHEET_ID,
+    ...details
+  }
+
+  try{await db.ref("activity_logs").push(payload)}catch(err){console.warn("No se pudo guardar activity_logs en Firebase", err)}
+
+  if(SHEETS_WEBHOOK_URL){
+    try{await fetch(SHEETS_WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})}
+    catch(err){console.warn("No se pudo enviar log a Google Sheets (webhook)", err)}
+  }
+}
 
 async function ensureSuperAdmin(){
   const key=emailKey(SUPER_ADMIN_EMAIL)
@@ -174,7 +198,10 @@ async function handleLogin(){
 
   currentUser=user
   currentRole=user.role
+  revealedTotpByClient={}
+  clientsCache={}
   try{await db.ref("users_by_email").child(emailKey(email)).update({lastAccessAt:new Date().toISOString()})}catch(_){ }
+  await logActivity("login")
   renderApp()
 }
 
@@ -260,6 +287,8 @@ function loadClients(){
       rows.push({id,c,clientName,country,notes})
     })
 
+    clientsCache=rows.reduce((acc,row)=>{acc[row.id]=row.c; return acc},{})
+
     if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
 
     container.innerHTML=`
@@ -277,26 +306,39 @@ function loadClients(){
                 <td>${htmlEscape(c.email||"-")}</td>
                 <td class="small">${htmlEscape(created)}</td>
                 <td>${c.active?'<span class="badge ok">Activo</span>':'<span class="badge off">Inactivo</span>'}</td>
-                <td class="mono" id="code-${id}">------</td>
-                <td class="small"><span id="timer-${id}">30</span>s</td>
+                <td class="mono" id="code-${id}">${currentRole==="admin"||revealedTotpByClient[id]?"------":"Presioná Obtener"}</td>
+                <td class="small"><span id="timer-${id}">${currentRole==="admin"||revealedTotpByClient[id]?"30":"-"}</span>${currentRole==="admin"||revealedTotpByClient[id]?"s":""}</td>
                 ${currentRole==="admin"?`<td><label class="switch"><input type="checkbox" ${c.active?"checked":""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
                 <td><div class="inline"><button class="ghost" onclick="editClient('${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
-                `<td><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></td>`}
+                `<td><div class="inline"><button class="ghost" ${revealedTotpByClient[id]?"disabled":""} onclick="revealTotp('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">${revealedTotpByClient[id]?"Obtenido":"Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></div></td>`}
               </tr>`
             }).join("")}
           </tbody>
         </table>
       </div>`
 
-    rows.forEach(({id,c})=>attachTotpLive(id,c))
+    rows.forEach(({id,c})=>{ if(currentRole==="admin"||revealedTotpByClient[id]) attachTotpLive(id,c) })
   })
 }
 
 function attachTotpLive(id,c){
+  if(totpIntervalsById[id]) return
+
   const codeId=`code-${id}`; const timerId=`timer-${id}`
   function updateTimer(){const seconds=30-(Math.floor(Date.now()/1000)%30); const el=document.getElementById(timerId); if(el) el.innerText=seconds}
   async function updateCode(){const el=document.getElementById(codeId); if(!el) return; if(!c.secret){el.innerText="Sin secret"; return} el.innerText=await generateTOTP(c.secret)}
-  updateTimer(); updateCode(); setInterval(updateTimer,1000); setInterval(()=>{if(Math.floor(Date.now()/1000)%30===0) updateCode()},1000)
+  updateTimer(); updateCode()
+  const timerInterval=setInterval(updateTimer,1000)
+  const codeInterval=setInterval(()=>{if(Math.floor(Date.now()/1000)%30===0) updateCode()},1000)
+  totpIntervalsById[id]={timerInterval,codeInterval}
+}
+
+async function revealTotp(clientId, clientName){
+  revealedTotpByClient[clientId]=true
+  await logActivity("totp_obtener",{clientId,clientName})
+  const clientData=clientsCache[clientId]
+  if(clientData) attachTotpLive(clientId,clientData)
+  loadClients()
 }
 
 function openClientModal(){extractedSecret=null;document.getElementById("secretPreview").innerText="";document.getElementById("clientModal").classList.remove("hidden")}
