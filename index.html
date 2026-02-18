@@ -183,7 +183,7 @@ let clientSearchTerm = ""
 let extractedSecret = null
 
 const SUPER_ADMIN_EMAIL = "alan.pereyra@replylatam.com"
-const SUPER_ADMIN_PASSWORD = "admin123"
+const SUPER_ADMIN_PASSWORD = "1234"
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -230,17 +230,39 @@ function htmlEscape(value){
 async function ensureSuperAdmin(){
   const key = emailKey(SUPER_ADMIN_EMAIL)
   const ref = db.ref("users_by_email").child(key)
-  const snap = await ref.once("value")
-  if(!snap.exists()){
-    await ref.set({
-      email: SUPER_ADMIN_EMAIL,
-      password: SUPER_ADMIN_PASSWORD,
-      role: "admin",
-      active: true,
-      createdAt: new Date().toISOString(),
-      createdBy: "system"
-    })
+  const data = {
+    email: SUPER_ADMIN_EMAIL,
+    password: SUPER_ADMIN_PASSWORD,
+    role: "admin",
+    active: true,
+    createdAt: new Date().toISOString(),
+    createdBy: "system"
   }
+
+  try{
+    const snap = await ref.once("value")
+    if(!snap.exists()){
+      await ref.set(data)
+    }
+  }catch(_){
+    // Si las reglas no permiten leer/escribir aquí, seguimos con fallback local.
+  }
+}
+
+async function getUserFromDb(email){
+  try{
+    const snap = await db.ref("users_by_email").child(emailKey(email)).once("value")
+    return snap.val()
+  }catch(_){
+    return null
+  }
+}
+
+function getFallbackUser(email,password){
+  if(email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD){
+    return { email: SUPER_ADMIN_EMAIL, password: SUPER_ADMIN_PASSWORD, role: "admin", active: true }
+  }
+  return null
 }
 
 function renderLogin(){
@@ -267,9 +289,8 @@ async function handleLogin(){
     return
   }
 
-  const key = emailKey(email)
-  const snap = await db.ref("users_by_email").child(key).once("value")
-  const user = snap.val()
+  const dbUser = await getUserFromDb(email)
+  const user = dbUser || getFallbackUser(email, password)
 
   if(!user || !user.active){
     alert("Usuario sin permisos o inactivo")
@@ -284,9 +305,13 @@ async function handleLogin(){
   currentUser = user
   currentRole = user.role
 
-  await db.ref("users_by_email").child(key).update({
-    lastAccessAt: new Date().toISOString()
-  })
+  try{
+    await db.ref("users_by_email").child(emailKey(email)).update({
+      lastAccessAt: new Date().toISOString()
+    })
+  }catch(_){
+    // Si no hay permisos de escritura, no bloqueamos el login.
+  }
 
   renderApp()
 }
@@ -312,7 +337,7 @@ function renderApp(){
           </div>
           <div class="inline">
             ${role === "admin" ? `<button onclick="openClientModal()">+ Nuevo cliente</button>` : ""}
-            <button class="secondary" onclick="logout()">Cerrar sesin</button>
+            <button class="secondary" onclick="logout()">Cerrar sesión</button>
           </div>
         </div>
       </div>
@@ -694,23 +719,11 @@ function loadOperatorsLastAccess(){
 }
 
 async function init(){
-  try{
-    await auth.signInAnonymously()
-  }catch(err){
-    console.error("No se pudo iniciar sesión anónima:", err)
-    document.getElementById("app").innerHTML = `<div class="card" style="max-width:620px;margin:40px auto"><h2>Error de permisos</h2><p class="small">No se pudo iniciar sesión anónima en Firebase. Activá Authentication > Sign-in method > Anonymous en Firebase y revisá las reglas de Realtime Database.</p><pre class="small">${htmlEscape(err.message || String(err))}</pre></div>`
-    return
-  }
-
-  try{
-    await ensureSuperAdmin()
-  }catch(err){
-    console.error("No se pudo validar super admin:", err)
-    document.getElementById("app").innerHTML = `<div class="card" style="max-width:620px;margin:40px auto"><h2>Error de permisos</h2><p class="small">No hay permisos para leer/escribir <code>users_by_email</code>. Revisá reglas de Firebase.</p><pre class="small">${htmlEscape(err.message || String(err))}</pre></div>`
-    return
-  }
-
+  // Siempre mostrar login. No bloqueamos la UI por reglas de Firebase.
   renderLogin()
+
+  // Intentamos crear el admin por defecto en DB (best effort).
+  await ensureSuperAdmin()
 }
 
 init()
