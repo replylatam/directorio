@@ -104,7 +104,7 @@ const SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T02R2EFLCEL/B0AFN388WD
 const SLACK_BOT_TOKEN="" // opcional: xoxb-... para responder en hilo al resolver
 const SLACK_CHANNEL_ID="" // opcional: ID de canal (ej: C0123456789)
 const SHEET_ID="1sY-int3hJ1maLwYFyt9NLXG9OZoHUO7Ac9i9zMmWMw4" // referencia de planilla
-const SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/AKfycbxAPLahLEzqh1S34r8zfW6fxK8iIl4t8P1LfYv2iUX_itvH3ssBTmFgdhanJRaprfmE/exec" // pegar URL de Web App de Apps Script para registrar en Google Sheets
+const SHEETS_WEBHOOK_URL="" // pegar URL de Web App de Apps Script para registrar en Google Sheets
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -146,11 +146,20 @@ async function logActivity(eventType, details={}){
     ...details
   }
 
-  try{await db.ref("activity_logs").push(payload)}catch(err){console.warn("No se pudo guardar activity_logs en Firebase", err)}
-
   if(SHEETS_WEBHOOK_URL){
-    try{await fetch(SHEETS_WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})}
-    catch(err){console.warn("No se pudo enviar log a Google Sheets (webhook)", err)}
+    try{
+      await fetch(SHEETS_WEBHOOK_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
+    }catch(err){
+      console.warn("Falló POST hacia Google Sheets, intento fallback GET", err)
+      try{
+        const q=encodeURIComponent(JSON.stringify(payload))
+        await fetch(`${SHEETS_WEBHOOK_URL}?payload=${q}`,{method:"GET",mode:"no-cors"})
+      }catch(err2){
+        console.warn("No se pudo enviar log a Google Sheets (webhook)", err2)
+      }
+    }
+  }else{
+    console.warn("SHEETS_WEBHOOK_URL no configurado: no se registró el evento", payload)
   }
 }
 
@@ -264,6 +273,21 @@ function renderApp(){
 
 function updateClientSearch(value){clientSearchTerm=(value||"").trim().toLowerCase();loadClients()}
 
+function isOperatorTotpVisible(clientId){
+  if(currentRole==="admin") return true
+  const state=revealedTotpByClient[clientId]
+  if(!state) return false
+  return Date.now()<state.expiresAt
+}
+
+function clearTotpInterval(clientId){
+  const refs=totpIntervalsById[clientId]
+  if(!refs) return
+  clearInterval(refs.timerInterval)
+  clearInterval(refs.codeInterval)
+  delete totpIntervalsById[clientId]
+}
+
 function loadClients(){
   const container=document.getElementById("clientsContainer")
   if(!container) return
@@ -289,6 +313,13 @@ function loadClients(){
 
     clientsCache=rows.reduce((acc,row)=>{acc[row.id]=row.c; return acc},{})
 
+    Object.keys(revealedTotpByClient).forEach((clientId)=>{
+      if(!isOperatorTotpVisible(clientId)){
+        delete revealedTotpByClient[clientId]
+        clearTotpInterval(clientId)
+      }
+    })
+
     if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
 
     container.innerHTML=`
@@ -306,26 +337,42 @@ function loadClients(){
                 <td>${htmlEscape(c.email||"-")}</td>
                 <td class="small">${htmlEscape(created)}</td>
                 <td>${c.active?'<span class="badge ok">Activo</span>':'<span class="badge off">Inactivo</span>'}</td>
-                <td class="mono" id="code-${id}">${currentRole==="admin"||revealedTotpByClient[id]?"------":"Presioná Obtener"}</td>
-                <td class="small"><span id="timer-${id}">${currentRole==="admin"||revealedTotpByClient[id]?"30":"-"}</span>${currentRole==="admin"||revealedTotpByClient[id]?"s":""}</td>
+                <td class="mono" id="code-${id}">${isOperatorTotpVisible(id)?"------":"Presioná Obtener"}</td>
+                <td class="small"><span id="timer-${id}">${isOperatorTotpVisible(id)?"30":"-"}</span>${isOperatorTotpVisible(id)?"s":""}</td>
                 ${currentRole==="admin"?`<td><label class="switch"><input type="checkbox" ${c.active?"checked":""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
                 <td><div class="inline"><button class="ghost" onclick="editClient('${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
-                `<td><div class="inline"><button class="ghost" ${revealedTotpByClient[id]?"disabled":""} onclick="revealTotp('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">${revealedTotpByClient[id]?"Obtenido":"Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></div></td>`}
+                `<td><div class="inline"><button class="ghost" ${isOperatorTotpVisible(id)?"disabled":""} onclick="revealTotp('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">${isOperatorTotpVisible(id)?"Obtenido":"Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></div></td>`}
               </tr>`
             }).join("")}
           </tbody>
         </table>
       </div>`
 
-    rows.forEach(({id,c})=>{ if(currentRole==="admin"||revealedTotpByClient[id]) attachTotpLive(id,c) })
+    rows.forEach(({id,c})=>{ if(isOperatorTotpVisible(id)) attachTotpLive(id,c) })
   })
 }
 
 function attachTotpLive(id,c){
-  if(totpIntervalsById[id]) return
+  clearTotpInterval(id)
 
   const codeId=`code-${id}`; const timerId=`timer-${id}`
-  function updateTimer(){const seconds=30-(Math.floor(Date.now()/1000)%30); const el=document.getElementById(timerId); if(el) el.innerText=seconds}
+  function updateTimer(){
+    const seconds=30-(Math.floor(Date.now()/1000)%30)
+    const el=document.getElementById(timerId)
+    if(el) el.innerText=seconds
+
+    if(currentRole!=="admin" && seconds===1){
+      setTimeout(()=>{
+        clearTotpInterval(id)
+        delete revealedTotpByClient[id]
+        const codeEl=document.getElementById(codeId)
+        const timerEl=document.getElementById(timerId)
+        if(codeEl) codeEl.innerText="Presioná Obtener"
+        if(timerEl) timerEl.innerText="-"
+        loadClients()
+      },1000)
+    }
+  }
   async function updateCode(){const el=document.getElementById(codeId); if(!el) return; if(!c.secret){el.innerText="Sin secret"; return} el.innerText=await generateTOTP(c.secret)}
   updateTimer(); updateCode()
   const timerInterval=setInterval(updateTimer,1000)
@@ -334,7 +381,8 @@ function attachTotpLive(id,c){
 }
 
 async function revealTotp(clientId, clientName){
-  revealedTotpByClient[clientId]=true
+  const expiresAt=(Math.floor(Date.now()/30000)+1)*30000
+  revealedTotpByClient[clientId]={expiresAt}
   await logActivity("totp_obtener",{clientId,clientName})
   const clientData=clientsCache[clientId]
   if(clientData) attachTotpLive(clientId,clientData)
