@@ -24,12 +24,12 @@ input{width:100%;padding:10px;border-radius:10px;border:1px solid #1e293b;backgr
 </head>
 <body>
 
-<div class="top">
-<strong>Authenticator Cloud</strong>
-<button id="loginBtn">Login con Google</button>
+<div class="container" id="app">
+  <div class="card" id="loginScreen">
+    <h2>Authenticator Cloud</h2>
+    <button id="loginBtn">Iniciar sesión con Google</button>
+  </div>
 </div>
-
-<div class="container" id="app">Cargando…</div>
 
 <script>
 
@@ -89,23 +89,37 @@ projectId:"directorio-c2ee0"
 
 const auth=firebase.auth()
 const db=firebase.database()
-const ADMIN_EMAIL="alan.pereyra@replylatam.com"
+  
+let currentRole = null;
+
 
 /* ================= Login ================= */
+document.getElementById("loginBtn").onclick = () => {
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+};
 
-document.getElementById("loginBtn").onclick=()=>{
-auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
-}
+auth.onAuthStateChanged(async user => {
 
-auth.onAuthStateChanged(user=>{
-if(!user)return
-const role=user.email===ADMIN_EMAIL?"admin":"operator"
-renderApp(role,user)
-})
+  if (!user) return;
+
+  const snap = await db.ref("users").child(user.uid).once("value");
+  const userData = snap.val();
+
+  if (!userData || !userData.active) {
+    alert("No tenés permisos para acceder.");
+    auth.signOut();
+    return;
+  }
+
+  renderApp(userData.role, user);
+});
 
 /* ================= UI ================= */
 
 function renderApp(role,user){
+  
+currentRole = role;
+  
 const app=document.getElementById("app")
 app.innerHTML=`
 <div class="card">
@@ -121,62 +135,80 @@ loadClients(role,user.email)
 /* ================= Clientes ================= */
 
 function loadClients(role,email){
-const container=document.getElementById("clients")
-db.ref("clients").on("value",snap=>{
-container.innerHTML=""
-const data=snap.val()
-if(!data){container.innerHTML="<p>Sin clientes</p>";return}
-Object.values(data).forEach(c=>{
-if(role==="admin"||c.operator===email){
-renderClient(c,container)
-}
-})
-})
-}
+  const container=document.getElementById("clients")
 
-function renderClient(c,container){
-const div=document.createElement("div")
-div.className="card"
+  db.ref("clients").on("value",snap=>{
+    container.innerHTML=""
+    const data=snap.val()
+    if(!data){
+      container.innerHTML="<p>Sin clientes</p>"
+      return
+    }
 
-const codeId="code-"+Math.random().toString(36).substring(2,9)
-const timerId="timer-"+Math.random().toString(36).substring(2,9)
-
-div.innerHTML=`
-<strong>${c.name}</strong>
-<div class="totp" id="${codeId}">------</div>
-<div class="small">
-Operador: ${c.operator||"No asignado"}<br>
-Vence en: <span id="${timerId}">30</span>s
-</div>
-`
-container.appendChild(div)
-
-async function updateCode(){
-if(!c.secret){
-document.getElementById(codeId).innerText="Sin secret"
-return
-}
-const token=await generateTOTP(c.secret)
-document.getElementById(codeId).innerText=token
+    Object.entries(data).forEach(([id,c])=>{
+      if(role==="admin" || c.operator===email){
+        renderClient(c,container,id)
+      }
+    })
+  })
 }
 
-function updateTimer(){
-const seconds=30-(Math.floor(Date.now()/1000)%30)
-document.getElementById(timerId).innerText=seconds
+
+function renderClient(c, container, id) {
+
+  if ((c.active === false) && currentRole === "operator") return;
+
+  const div = document.createElement("div");
+  div.className = "card";
+
+  const codeId = "code-" + id;
+  const timerId = "timer-" + id;
+
+  const fecha = c.createdAt 
+  ? new Date(c.createdAt).toLocaleString() 
+  : "Fecha desconocida";
+
+  div.innerHTML = `
+    <strong>${c.name}</strong>
+    <div class="small">Creado: ${fecha}</div>
+    <div class="small">Estado: ${c.active ? "Activo" : "Inactivo"}</div>
+    <div class="totp" id="${codeId}">------</div>
+    <div class="small">
+      Operador: ${c.operator || "No asignado"}<br>
+      Vence en: <span id="${timerId}">30</span>s
+    </div>
+    ${currentRole === "admin" ? `
+      <button onclick="toggleClient('${id}', ${c.active})">
+        ${c.active ? "Apagar" : "Encender"}
+      </button>
+      <button onclick="editClient('${id}')">Editar</button>
+    ` : ""}
+  `;
+
+  container.appendChild(div);
+
+  if (!c.secret) return;
+
+  async function updateCode(){
+    const token = await generateTOTP(c.secret);
+    document.getElementById(codeId).innerText = token;
+  }
+
+  function updateTimer(){
+    const seconds = 30 - (Math.floor(Date.now()/1000)%30);
+    document.getElementById(timerId).innerText = seconds;
+  }
+
+  updateCode();
+  updateTimer();
+
+  setInterval(updateTimer,1000);
+  setInterval(()=>{
+    const seconds=Math.floor(Date.now()/1000);
+    if(seconds%30===0) updateCode();
+  },1000);
 }
 
-updateCode()
-updateTimer()
-
-setInterval(updateTimer,1000)
-
-setInterval(()=>{
-const seconds=Math.floor(Date.now()/1000)
-if(seconds%30===0){
-updateCode()
-}
-},1000)
-}
 
 /* ================= Crear Cliente ================= */
 
@@ -245,6 +277,27 @@ async function extractSecret() {
 
   reader.readAsDataURL(file);
 }
+async function toggleClient(id, currentState){
+  await db.ref("clients").child(id).update({
+    active: !currentState
+  });
+}
+
+  async function editClient(id){
+  const snap = await db.ref("clients").child(id).once("value");
+  const c = snap.val();
+
+  const newName = prompt("Nuevo nombre:", c.name);
+  const newOperator = prompt("Nuevo operador:", c.operator);
+
+  if(!newName || !newOperator) return;
+
+  await db.ref("clients").child(id).update({
+    name: newName,
+    operator: newOperator
+  });
+}
+
 
   async function saveClient() {
 
@@ -265,7 +318,9 @@ async function extractSecret() {
     name,
     operator,
     secret: extractedSecret,
+    active: true,
     createdAt: new Date().toISOString()
+    
   });
 
   alert("Cliente creado correctamente");
