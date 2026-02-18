@@ -183,7 +183,7 @@ let clientSearchTerm = ""
 let extractedSecret = null
 
 const SUPER_ADMIN_EMAIL = "alan.pereyra@replylatam.com"
-const SUPER_ADMIN_PASSWORD = "admin123"
+const SUPER_ADMIN_PASSWORD = "1234"
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -289,15 +289,19 @@ async function handleLogin(){
     return
   }
 
+  const fallbackUser = getFallbackUser(email, password)
   const dbUser = await getUserFromDb(email)
-  const user = dbUser || getFallbackUser(email, password)
+
+  // Para el super admin permitimos siempre la clave local (1234),
+  // incluso si en Firebase quedó una contraseña distinta.
+  const user = fallbackUser || dbUser
 
   if(!user || !user.active){
     alert("Usuario sin permisos o inactivo")
     return
   }
 
-  if(user.password !== password){
+  if(!fallbackUser && user.password !== password){
     alert("Contraseña incorrecta")
     return
   }
