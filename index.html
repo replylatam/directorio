@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<title>Authenticator Cloud</title>
+<title>Directorio de clientes - Reply Latam</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -11,94 +11,36 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
 <style>
-:root{
-  --bg-1:#030712;
-  --bg-2:#0b1220;
-  --surface:rgba(15,23,42,.58);
-  --stroke:rgba(148,163,184,.24);
-  --text:#e2e8f0;
-  --muted:#94a3b8;
-  --accent:#7c3aed;
-  --accent-2:#06b6d4;
-  --danger:#dc2626;
-  --ok:#16a34a;
-}
+:root{--bg-1:#030712;--bg-2:#0b1220;--surface:rgba(15,23,42,.58);--stroke:rgba(148,163,184,.24);--text:#e2e8f0;--muted:#94a3b8;--accent:#7c3aed;--accent-2:#06b6d4;--danger:#dc2626;--ok:#16a34a}
 *{box-sizing:border-box}
-body{
-  margin:0;
-  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-  color:var(--text);
-  background:
-    radial-gradient(1000px 500px at 10% -10%, rgba(124,58,237,.3), transparent 55%),
-    radial-gradient(900px 500px at 100% -20%, rgba(6,182,212,.25), transparent 60%),
-    linear-gradient(180deg,var(--bg-2),var(--bg-1));
-  min-height:100vh;
-  padding:clamp(12px,2.4vw,26px);
-}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 10% -10%,rgba(124,58,237,.3),transparent 55%),radial-gradient(900px 500px at 100% -20%,rgba(6,182,212,.25),transparent 60%),linear-gradient(180deg,var(--bg-2),var(--bg-1));min-height:100vh;padding:clamp(12px,2.4vw,26px)}
 .container{max-width:1280px;margin:auto}
-.card{
-  background:var(--surface);
-  backdrop-filter: blur(14px);
-  border:1px solid var(--stroke);
-  border-radius:16px;
-  padding:clamp(12px,1.6vw,16px);
-  margin-bottom:12px;
-  box-shadow:0 10px 40px rgba(0,0,0,.28);
-  animation:fadeIn .35s ease both;
-}
+.card{background:var(--surface);backdrop-filter:blur(14px);border:1px solid var(--stroke);border-radius:16px;padding:clamp(12px,1.6vw,16px);margin-bottom:12px;box-shadow:0 10px 40px rgba(0,0,0,.28);animation:fadeIn .35s ease both}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-button,.btn{
-  border:none;
-  color:white;
-  padding:10px 14px;
-  font-size:14px;
-  border-radius:10px;
-  cursor:pointer;
-  background:linear-gradient(135deg,var(--accent),#4338ca);
-  transition:transform .18s ease, box-shadow .2s ease, opacity .2s ease;
-  box-shadow:0 6px 18px rgba(124,58,237,.35);
-}
+button,.btn{border:none;color:#fff;padding:10px 14px;font-size:14px;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,var(--accent),#4338ca);transition:transform .18s ease, box-shadow .2s ease, opacity .2s ease;box-shadow:0 6px 18px rgba(124,58,237,.35)}
 button:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(124,58,237,.35)}
-button:active,.btn:active{transform:translateY(0)}
 button.secondary{background:#1e293b;box-shadow:none}
 button.danger{background:linear-gradient(135deg,#ef4444,var(--danger));box-shadow:0 6px 16px rgba(220,38,38,.4)}
 button.ghost{background:rgba(30,41,59,.4);border:1px solid rgba(148,163,184,.25);box-shadow:none}
+button.warn{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 6px 16px rgba(245,158,11,.4)}
 button:disabled{opacity:.45;cursor:not-allowed;transform:none}
 label{font-size:12px;color:#cbd5e1;display:block;margin:0 0 6px}
-input,select,textarea{
-  width:100%;
-  padding:11px 12px;
-  font-size:14px;
-  border-radius:11px;
-  border:1px solid rgba(148,163,184,.24);
-  background:rgba(2,6,23,.6);
-  color:var(--text);
-  margin-bottom:10px;
-  outline:none;
-  transition:border-color .2s ease, box-shadow .2s ease;
-}
+input,select,textarea{width:100%;padding:11px 12px;font-size:14px;border-radius:11px;border:1px solid rgba(148,163,184,.24);background:rgba(2,6,23,.6);color:var(--text);margin-bottom:10px;outline:none;transition:border-color .2s ease, box-shadow .2s ease}
 input:focus,select:focus,textarea:focus{border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(6,182,212,.2)}
 textarea{min-height:86px;resize:vertical}
 .small{font-size:12px;color:var(--muted)}
-.row{display:flex;gap:10px;flex-wrap:wrap}
-.row>*{flex:1 1 220px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 220px}
 .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .grid{display:grid;grid-template-columns:1fr;gap:12px}
 @media (min-width:980px){.grid{grid-template-columns:1.2fr .9fr}}
 .badge{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--stroke)}
 .badge.ok{color:#86efac;border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.12)}
 .badge.off{color:#fca5a5;border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.12)}
-.searchWrap{position:relative}
-.searchWrap input{padding-left:36px;margin:0}
-.searchWrap:before{content:'🔎';position:absolute;left:11px;top:8px;opacity:.65}
-.switch{position:relative;display:inline-block;width:52px;height:28px}
-.switch input{opacity:0;width:0;height:0;margin:0}
-.slider{position:absolute;inset:0;cursor:pointer;background:#334155;transition:.2s;border-radius:999px}
-.slider:before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}
-.switch input:checked + .slider{background:linear-gradient(135deg,#16a34a,#22c55e)}
-.switch input:checked + .slider:before{transform:translateX(24px)}
+.badge.warn{color:#fde68a;border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.12)}
+.searchWrap{position:relative}.searchWrap input{padding-left:36px;margin:0}.searchWrap:before{content:'🔎';position:absolute;left:11px;top:8px;opacity:.65}
+.switch{position:relative;display:inline-block;width:52px;height:28px}.switch input{opacity:0;width:0;height:0;margin:0}.slider{position:absolute;inset:0;cursor:pointer;background:#334155;transition:.2s;border-radius:999px}.slider:before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}.switch input:checked + .slider{background:linear-gradient(135deg,#16a34a,#22c55e)}.switch input:checked + .slider:before{transform:translateX(24px)}
 .tableWrap{overflow:auto;border:1px solid var(--stroke);border-radius:12px}
-.table{width:100%;border-collapse:collapse;min-width:980px;background:rgba(2,6,23,.38)}
+.table{width:100%;border-collapse:collapse;min-width:1080px;background:rgba(2,6,23,.38)}
 .table th,.table td{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top}
 .table th{font-size:12px;color:#cbd5e1;letter-spacing:.3px;text-transform:uppercase;background:rgba(15,23,42,.85);position:sticky;top:0;z-index:2}
 .table tbody tr:hover{background:rgba(30,41,59,.45)}
@@ -106,16 +48,10 @@ textarea{min-height:86px;resize:vertical}
 .modalBack{position:fixed;inset:0;background:rgba(2,6,23,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:99}
 .modal{width:min(760px,100%);max-height:90vh;overflow:auto}
 .hidden{display:none!important}
-@media (max-width: 768px){
-  h2{font-size:22px}
-  h3{font-size:18px}
-  .row>*{flex:1 1 100%}
-  .table{min-width:760px}
-}
+@media (max-width:768px){h2{font-size:22px}h3{font-size:18px}.row>*{flex:1 1 100%}.table{min-width:800px}}
 </style>
 </head>
 <body>
-
 <div class="container" id="app"></div>
 
 <div id="clientModal" class="modalBack hidden">
@@ -124,39 +60,16 @@ textarea{min-height:86px;resize:vertical}
       <h3 style="margin:0">Nuevo cliente</h3>
       <button class="secondary" onclick="closeClientModal()">Cerrar</button>
     </div>
-
     <div class="row">
-      <div>
-        <label>Cliente</label>
-        <input id="cClientName">
-      </div>
-      <div>
-        <label>Contraseña</label>
-        <input id="cPassword">
-      </div>
+      <div><label>Cliente</label><input id="cClientName"></div>
+      <div><label>Contraseña</label><input id="cPassword"></div>
     </div>
-
     <div class="row">
-      <div>
-        <label>País</label>
-        <input id="cCountry">
-      </div>
-      <div>
-        <label>Email</label>
-        <input id="cEmail">
-      </div>
+      <div><label>País</label><input id="cCountry"></div>
+      <div><label>Email</label><input id="cEmail"></div>
     </div>
-
-    <div>
-      <label>Notas</label>
-      <textarea id="cNotes"></textarea>
-    </div>
-
-    <div>
-      <label>QR de autenticación</label>
-      <input type="file" id="qrFile" accept="image/*">
-    </div>
-
+    <div><label>Notas</label><textarea id="cNotes"></textarea></div>
+    <div><label>QR de autenticación</label><input type="file" id="qrFile" accept="image/*"></div>
     <div class="inline" style="justify-content:flex-end;margin-top:4px">
       <button class="ghost" onclick="extractSecret()">Extraer SECRET</button>
       <button onclick="saveClient()">Guardar cliente</button>
@@ -177,26 +90,24 @@ firebase.initializeApp({
 const auth=firebase.auth()
 const db=firebase.database()
 
-let currentUser = null
-let currentRole = null
-let clientSearchTerm = ""
-let extractedSecret = null
+let currentUser=null
+let currentRole=null
+let clientSearchTerm=""
+let extractedSecret=null
 
-const SUPER_ADMIN_EMAIL = "alan.pereyra@replylatam.com"
-const SUPER_ADMIN_PASSWORD = "1234"
+const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
+const SUPER_ADMIN_PASSWORD="1234"
+const SLACK_WEBHOOK_URL="" // opcional: pegar webhook de Slack para alertas
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
   let bits="",result=[]
   base32=(base32||"").replace(/=+$/,"").replace(/\s+/g,"").toUpperCase()
   for(let i=0;i<base32.length;i++){
-    const val=alphabet.indexOf(base32[i])
-    if(val===-1)continue
+    const val=alphabet.indexOf(base32[i]); if(val===-1)continue
     bits+=val.toString(2).padStart(5,"0")
   }
-  for(let i=0;i+8<=bits.length;i+=8){
-    result.push(parseInt(bits.substring(i,i+8),2))
-  }
+  for(let i=0;i+8<=bits.length;i+=8){result.push(parseInt(bits.substring(i,i+8),2))}
   return new Uint8Array(result)
 }
 
@@ -214,522 +125,322 @@ async function generateTOTP(secret){
   return(code%1000000).toString().padStart(6,"0")
 }
 
-function emailKey(email){
-  return (email || "").toLowerCase().replace(/[.#$/\[\]]/g, "_")
-}
-
-function htmlEscape(value){
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;")
-}
+function emailKey(email){return (email||"").toLowerCase().replace(/[.#$/\[\]]/g,"_")}
+function htmlEscape(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
 
 async function ensureSuperAdmin(){
-  const key = emailKey(SUPER_ADMIN_EMAIL)
-  const ref = db.ref("users_by_email").child(key)
-  const data = {
-    email: SUPER_ADMIN_EMAIL,
-    password: SUPER_ADMIN_PASSWORD,
-    role: "admin",
-    active: true,
-    createdAt: new Date().toISOString(),
-    createdBy: "system"
-  }
-
-  try{
-    const snap = await ref.once("value")
-    if(!snap.exists()){
-      await ref.set(data)
-    }
-  }catch(_){
-    // Si las reglas no permiten leer/escribir aquí, seguimos con fallback local.
-  }
+  const key=emailKey(SUPER_ADMIN_EMAIL)
+  const ref=db.ref("users_by_email").child(key)
+  const data={email:SUPER_ADMIN_EMAIL,password:SUPER_ADMIN_PASSWORD,role:"admin",active:true,createdAt:new Date().toISOString(),createdBy:"system"}
+  try{const snap=await ref.once("value"); if(!snap.exists()) await ref.set(data)}catch(_){ }
 }
 
 async function getUserFromDb(email){
-  try{
-    const snap = await db.ref("users_by_email").child(emailKey(email)).once("value")
-    return snap.val()
-  }catch(_){
-    return null
-  }
+  try{const snap=await db.ref("users_by_email").child(emailKey(email)).once("value"); return snap.val()}catch(_){return null}
 }
 
 function getFallbackUser(email,password){
-  if(email === SUPER_ADMIN_EMAIL && password === SUPER_ADMIN_PASSWORD){
-    return { email: SUPER_ADMIN_EMAIL, password: SUPER_ADMIN_PASSWORD, role: "admin", active: true }
+  if(email===SUPER_ADMIN_EMAIL && password===SUPER_ADMIN_PASSWORD){
+    return {email:SUPER_ADMIN_EMAIL,password:SUPER_ADMIN_PASSWORD,role:"admin",active:true}
   }
   return null
 }
 
 function renderLogin(){
-  document.getElementById("app").innerHTML = `
-    <div class="card" style="max-width:460px;margin:50px auto">
-      <h2 style="margin-top:0">Ingresar</h2>
+  document.getElementById("app").innerHTML=`
+    <div class="card" style="max-width:480px;margin:40px auto">
+      <h2 style="margin-top:0">Directorio de clientes - Reply Latam</h2>
       <p class="small">Acceso por Email + Contraseña.</p>
-      <label>Email</label>
-      <input id="loginEmail" type="email">
-      <label>Contraseña</label>
-      <input id="loginPassword" type="password">
+      <label>Email</label><input id="loginEmail" type="email">
+      <label>Contraseña</label><input id="loginPassword" type="password">
       <button onclick="handleLogin()" style="width:100%">Entrar</button>
       <p class="small" style="margin-top:10px">Si es tu primera vez, pedí acceso al admin.</p>
-    </div>
-  `
+    </div>`
 }
 
 async function handleLogin(){
-  const email = document.getElementById("loginEmail").value.trim().toLowerCase()
-  const password = document.getElementById("loginPassword").value
+  const email=document.getElementById("loginEmail").value.trim().toLowerCase()
+  const password=document.getElementById("loginPassword").value
+  if(!email||!password) return alert("Completá email y contraseña")
 
-  if(!email || !password){
-    alert("Completá email y contraseña")
-    return
-  }
+  const fallbackUser=getFallbackUser(email,password)
+  const dbUser=await getUserFromDb(email)
+  const user=fallbackUser||dbUser
 
-  const fallbackUser = getFallbackUser(email, password)
-  const dbUser = await getUserFromDb(email)
+  if(!user||!user.active) return alert("Usuario sin permisos o inactivo")
+  if(!fallbackUser && user.password!==password) return alert("Contraseña incorrecta")
 
-  // Para el super admin permitimos siempre la clave local (1234),
-  // incluso si en Firebase quedó una contraseña distinta.
-  const user = fallbackUser || dbUser
-
-  if(!user || !user.active){
-    alert("Usuario sin permisos o inactivo")
-    return
-  }
-
-  if(!fallbackUser && user.password !== password){
-    alert("Contraseña incorrecta")
-    return
-  }
-
-  currentUser = user
-  currentRole = user.role
-
-  try{
-    await db.ref("users_by_email").child(emailKey(email)).update({
-      lastAccessAt: new Date().toISOString()
-    })
-  }catch(_){
-    // Si no hay permisos de escritura, no bloqueamos el login.
-  }
-
+  currentUser=user
+  currentRole=user.role
+  try{await db.ref("users_by_email").child(emailKey(email)).update({lastAccessAt:new Date().toISOString()})}catch(_){ }
   renderApp()
 }
 
-function logout(){
-  currentUser = null
-  currentRole = null
-  extractedSecret = null
-  renderLogin()
-}
+function logout(){currentUser=null;currentRole=null;extractedSecret=null;renderLogin()}
 
 function renderApp(){
-  const role = currentRole
-  const email = currentUser.email
+  const role=currentRole
+  const email=currentUser.email
 
-  document.getElementById("app").innerHTML = `
+  document.getElementById("app").innerHTML=`
     <div class="grid">
       <div class="card">
         <div class="inline" style="justify-content:space-between">
           <div>
-            <h2 style="margin:0">${role === "admin" ? "Panel Admin" : "Panel Operador"}</h2>
-            <p class="small" style="margin:6px 0 0">${htmlEscape(email)}</p>
+            <h2 style="margin:0">Directorio de clientes - Reply Latam</h2>
+            <p class="small" style="margin:6px 0 0">${role==="admin"?"Panel Admin":"Panel Operador"} · ${htmlEscape(email)}</p>
           </div>
           <div class="inline">
-            ${role === "admin" ? `<button onclick="openClientModal()">+ Nuevo cliente</button>` : ""}
+            ${role==="admin"?`<button onclick="openClientModal()">+ Nuevo cliente</button>`:""}
             <button class="secondary" onclick="logout()">Cerrar sesión</button>
           </div>
         </div>
       </div>
 
-      ${role === "admin" ? `
+      ${role==="admin"?`
       <div class="card">
         <h3 style="margin-top:0">Gestión de usuarios</h3>
         <div class="row">
-          <div>
-            <label>Email</label>
-            <input id="uEmail">
-          </div>
-          <div>
-            <label>Contraseña</label>
-            <input id="uPassword" type="text">
-          </div>
+          <div><label>Email</label><input id="uEmail"></div>
+          <div><label>Contraseña</label><input id="uPassword" type="text"></div>
         </div>
         <div class="row">
-          <div>
-            <label>Rol</label>
-            <select id="uRole">
-              <option value="operator">Operador</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <div style="display:flex;align-items:flex-end">
-            <button onclick="saveUserAccess()">Guardar usuario</button>
-          </div>
+          <div><label>Rol</label><select id="uRole"><option value="operator">Operador</option><option value="admin">Admin</option></select></div>
+          <div style="display:flex;align-items:flex-end"><button onclick="saveUserAccess()">Guardar usuario</button></div>
         </div>
         <div id="usersList" class="small"></div>
-      </div>
-      ` : "<div></div>"}
+      </div>`:"<div></div>"}
     </div>
 
     <div class="card">
       <div class="inline" style="justify-content:space-between;margin-bottom:10px">
         <h3 style="margin:0">Clientes</h3>
-        <span class="small">Filtro en tiempo real</span>
+        <span class="small">${role==="admin"?"Vista admin":"Viendo todos los clientes activos"}</span>
       </div>
       <div class="searchWrap"><input oninput="updateClientSearch(this.value)"></div>
     </div>
 
     <div class="card" id="clientsContainer"></div>
 
-    ${role === "admin" ? `
-      <div class="card">
-        <h3 style="margin-top:0">Último acceso de operadores</h3>
-        <div id="operatorsLastAccess"></div>
-      </div>
-    ` : ""}
+    ${role==="admin"?`<div class="card"><h3 style="margin-top:0">Alertas de operadores</h3><div id="operatorAlerts"></div></div><div class="card"><h3 style="margin-top:0">Último acceso de operadores</h3><div id="operatorsLastAccess"></div></div>`:""}
   `
 
   loadClients()
-  if(role === "admin"){
+  if(role==="admin"){
     loadUsersAdmin()
     loadOperatorsLastAccess()
+    loadOperatorAlerts()
   }
 }
 
-function updateClientSearch(value){
-  clientSearchTerm = (value || "").trim().toLowerCase()
-  loadClients()
-}
+function updateClientSearch(value){clientSearchTerm=(value||"").trim().toLowerCase();loadClients()}
 
 function loadClients(){
   const container=document.getElementById("clientsContainer")
   if(!container) return
 
   db.ref("clients").off()
-  db.ref("clients").on("value", snap => {
+  db.ref("clients").on("value", snap=>{
     const data=snap.val()
-    if(!data){
-      container.innerHTML="<p>Sin clientes</p>"
-      return
-    }
+    if(!data){container.innerHTML="<p>Sin clientes</p>";return}
 
-    const rows = []
-
+    const rows=[]
     Object.entries(data).forEach(([id,c])=>{
-      const visibleForRole = currentRole === "admin" ? true : (c.email===currentUser.email && c.active !== false)
+      const visibleForRole=currentRole==="admin"?true:(c.active!==false)
       if(!visibleForRole) return
 
-      const clientName = c.clientName || c.name || ""
-      const country = c.country || ""
-      const notes = c.notes || ""
-      const haystack = `${clientName} ${country} ${c.email || ""} ${notes}`.toLowerCase()
+      const clientName=c.clientName||c.name||""
+      const country=c.country||""
+      const notes=c.notes||""
+      const haystack=`${clientName} ${country} ${c.email||""} ${notes}`.toLowerCase()
       if(clientSearchTerm && !haystack.includes(clientSearchTerm)) return
 
-      rows.push({ id, c, clientName, country, notes })
+      rows.push({id,c,clientName,country,notes})
     })
 
-    if(!rows.length){
-      container.innerHTML="<p>No hay resultados para la búsqueda.</p>"
-      return
-    }
+    if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
 
     container.innerHTML=`
       <div class="tableWrap">
         <table class="table">
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Contraseña</th>
-              <th>País</th>
-              <th>Notas</th>
-              <th>Email</th>
-              <th>Fecha carga</th>
-              <th>Estado</th>
-              <th>TOTP</th>
-              <th>Vence</th>
-              ${currentRole === "admin" ? "<th>Activo</th><th>Acciones</th>" : ""}
-            </tr>
-          </thead>
+          <thead><tr><th>Cliente</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
           <tbody>
             ${rows.map(({id,c,clientName,country,notes})=>{
-              const created = c.createdAt ? new Date(c.createdAt).toLocaleString() : "Fecha desconocida"
-              return `
-                <tr>
-                  <td><strong>${htmlEscape(clientName || "-")}</strong></td>
-                  <td>${htmlEscape(c.password || "-")}</td>
-                  <td>${htmlEscape(country || "-")}</td>
-                  <td>${htmlEscape(notes || "-")}</td>
-                  <td>${htmlEscape(c.email || "-")}</td>
-                  <td class="small">${htmlEscape(created)}</td>
-                  <td>${c.active ? '<span class="badge ok">Activo</span>' : '<span class="badge off">Inactivo</span>'}</td>
-                  <td class="mono" id="code-${id}">------</td>
-                  <td class="small"><span id="timer-${id}">30</span>s</td>
-                  ${currentRole === "admin" ? `
-                    <td>
-                      <label class="switch">
-                        <input type="checkbox" ${c.active ? "checked" : ""} onchange="toggleClientSwitch('${id}', this.checked)">
-                        <span class="slider"></span>
-                      </label>
-                    </td>
-                    <td>
-                      <div class="inline">
-                        <button class="ghost" onclick="editClient('${id}')">Editar</button>
-                        <button class="danger" onclick="deleteClient('${id}', '${String(clientName || "").replace(/'/g, "\\'")}')">Borrar</button>
-                      </div>
-                    </td>
-                  ` : ""}
-                </tr>
-              `
+              const created=c.createdAt?new Date(c.createdAt).toLocaleString():"Fecha desconocida"
+              return `<tr>
+                <td><strong>${htmlEscape(clientName||"-")}</strong></td>
+                <td>${htmlEscape(c.password||"-")}</td>
+                <td>${htmlEscape(country||"-")}</td>
+                <td>${htmlEscape(notes||"-")}</td>
+                <td>${htmlEscape(c.email||"-")}</td>
+                <td class="small">${htmlEscape(created)}</td>
+                <td>${c.active?'<span class="badge ok">Activo</span>':'<span class="badge off">Inactivo</span>'}</td>
+                <td class="mono" id="code-${id}">------</td>
+                <td class="small"><span id="timer-${id}">30</span>s</td>
+                ${currentRole==="admin"?`<td><label class="switch"><input type="checkbox" ${c.active?"checked":""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
+                <td><div class="inline"><button class="ghost" onclick="editClient('${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
+                `<td><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></td>`}
+              </tr>`
             }).join("")}
           </tbody>
         </table>
-      </div>
-    `
+      </div>`
 
-    rows.forEach(({id,c}) => attachTotpLive(id,c))
+    rows.forEach(({id,c})=>attachTotpLive(id,c))
   })
 }
 
-function attachTotpLive(id, c){
-  const codeId = `code-${id}`
-  const timerId = `timer-${id}`
+function attachTotpLive(id,c){
+  const codeId=`code-${id}`; const timerId=`timer-${id}`
+  function updateTimer(){const seconds=30-(Math.floor(Date.now()/1000)%30); const el=document.getElementById(timerId); if(el) el.innerText=seconds}
+  async function updateCode(){const el=document.getElementById(codeId); if(!el) return; if(!c.secret){el.innerText="Sin secret"; return} el.innerText=await generateTOTP(c.secret)}
+  updateTimer(); updateCode(); setInterval(updateTimer,1000); setInterval(()=>{if(Math.floor(Date.now()/1000)%30===0) updateCode()},1000)
+}
 
-  function updateTimer(){
-    const seconds = 30 - (Math.floor(Date.now()/1000)%30)
-    const el = document.getElementById(timerId)
-    if(el) el.innerText = seconds
-  }
+function openClientModal(){extractedSecret=null;document.getElementById("secretPreview").innerText="";document.getElementById("clientModal").classList.remove("hidden")}
+function closeClientModal(){document.getElementById("clientModal").classList.add("hidden")}
 
-  async function updateCode(){
-    const el = document.getElementById(codeId)
-    if(!el) return
-    if(!c.secret){
-      el.innerText = "Sin secret"
-      return
+async function extractSecret(){
+  const file=document.getElementById("qrFile")?.files?.[0]
+  if(!file) return alert("Seleccioná una imagen QR")
+  const reader=new FileReader()
+  reader.onload=function(e){
+    const img=new Image()
+    img.onload=function(){
+      const canvas=document.createElement("canvas"); canvas.width=img.width; canvas.height=img.height
+      const ctx=canvas.getContext("2d"); ctx.drawImage(img,0,0)
+      const imageData=ctx.getImageData(0,0,canvas.width,canvas.height)
+      const qr=jsQR(imageData.data,canvas.width,canvas.height)
+      if(!qr) return alert("No se pudo leer el QR")
+      const match=qr.data.match(/secret=([A-Z0-9]+)/i)
+      if(!match) return alert("No se encontró SECRET en el QR")
+      extractedSecret=match[1]
+      document.getElementById("secretPreview").innerText="SECRET detectado: "+extractedSecret
     }
-    el.innerText = await generateTOTP(c.secret)
-  }
-
-  updateTimer()
-  updateCode()
-  setInterval(updateTimer,1000)
-  setInterval(()=>{
-    if(Math.floor(Date.now()/1000)%30===0) updateCode()
-  },1000)
-}
-
-function openClientModal(){
-  extractedSecret = null
-  document.getElementById("secretPreview").innerText = ""
-  document.getElementById("clientModal").classList.remove("hidden")
-}
-
-function closeClientModal(){
-  document.getElementById("clientModal").classList.add("hidden")
-}
-
-async function extractSecret() {
-  const fileInput = document.getElementById("qrFile")
-  const file = fileInput?.files?.[0]
-  if (!file) {
-    alert("Seleccioná una imagen QR")
-    return
-  }
-
-  const reader = new FileReader()
-  reader.onload = function(e) {
-    const img = new Image()
-    img.onload = function() {
-      const canvas = document.createElement("canvas")
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext("2d")
-      ctx.drawImage(img, 0, 0)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const qr = jsQR(imageData.data, canvas.width, canvas.height)
-
-      if (!qr) return alert("No se pudo leer el QR")
-      const match = qr.data.match(/secret=([A-Z0-9]+)/i)
-      if (!match) return alert("No se encontró SECRET en el QR")
-
-      extractedSecret = match[1]
-      document.getElementById("secretPreview").innerText = "SECRET detectado: " + extractedSecret
-    }
-    img.src = e.target.result
+    img.src=e.target.result
   }
   reader.readAsDataURL(file)
 }
 
-async function saveClient() {
-  if (!extractedSecret) {
-    alert("Primero extraé el SECRET")
-    return
-  }
+async function saveClient(){
+  if(!extractedSecret) return alert("Primero extraé el SECRET")
+  const clientName=document.getElementById("cClientName").value.trim()
+  const password=document.getElementById("cPassword").value.trim()
+  const country=document.getElementById("cCountry").value.trim()
+  const email=document.getElementById("cEmail").value.trim().toLowerCase()
+  const notes=document.getElementById("cNotes").value.trim()
+  if(!clientName||!password||!country||!email) return alert("Completá Cliente, Contraseña, País y Email")
 
-  const clientName = document.getElementById("cClientName").value.trim()
-  const password = document.getElementById("cPassword").value.trim()
-  const country = document.getElementById("cCountry").value.trim()
-  const email = document.getElementById("cEmail").value.trim().toLowerCase()
-  const notes = document.getElementById("cNotes").value.trim()
-
-  if (!clientName || !password || !country || !email) {
-    alert("Completá Cliente, Contraseña, País y Email")
-    return
-  }
-
-  await db.ref("clients").push({
-    clientName,
-    name: clientName,
-    password,
-    country,
-    email,
-    notes,
-    secret: extractedSecret,
-    active: true,
-    createdAt: new Date().toISOString(),
-    createdBy: currentUser.email
-  })
-
+  await db.ref("clients").push({clientName,name:clientName,password,country,email,notes,secret:extractedSecret,active:true,createdAt:new Date().toISOString(),createdBy:currentUser.email})
   alert("Cliente creado correctamente")
   closeClientModal()
 }
 
 async function editClient(id){
-  const snap = await db.ref("clients").child(id).once("value")
-  const c = snap.val() || {}
-
-  const nextClient = prompt("Cliente:", c.clientName || c.name || "")
-  if(nextClient === null) return
-  const nextPass = prompt("Contraseña:", c.password || "")
-  if(nextPass === null) return
-  const nextCountry = prompt("País:", c.country || "")
-  if(nextCountry === null) return
-  const nextEmail = prompt("Email:", c.email || "")
-  if(nextEmail === null) return
-  const nextNotes = prompt("Notas:", c.notes || "")
-  if(nextNotes === null) return
-
-  await db.ref("clients").child(id).update({
-    clientName: nextClient,
-    name: nextClient,
-    password: nextPass,
-    country: nextCountry,
-    email: nextEmail.toLowerCase(),
-    notes: nextNotes
-  })
+  const c=(await db.ref("clients").child(id).once("value")).val()||{}
+  const nextClient=prompt("Cliente:",c.clientName||c.name||""); if(nextClient===null) return
+  const nextPass=prompt("Contraseña:",c.password||""); if(nextPass===null) return
+  const nextCountry=prompt("País:",c.country||""); if(nextCountry===null) return
+  const nextEmail=prompt("Email:",c.email||""); if(nextEmail===null) return
+  const nextNotes=prompt("Notas:",c.notes||""); if(nextNotes===null) return
+  await db.ref("clients").child(id).update({clientName:nextClient,name:nextClient,password:nextPass,country:nextCountry,email:nextEmail.toLowerCase(),notes:nextNotes})
 }
 
-async function toggleClientSwitch(id, checked){
-  await db.ref("clients").child(id).update({ active: checked })
-}
+async function toggleClientSwitch(id,checked){await db.ref("clients").child(id).update({active:checked})}
+async function deleteClient(id,name){if(!confirm(`¿Seguro que querés borrar el cliente "${name}"? Esta acción no se puede deshacer.`)) return; await db.ref("clients").child(id).remove()}
 
-async function deleteClient(id, name){
-  const confirmed = confirm(`¿Seguro que querés borrar el cliente "${name}"? Esta acción no se puede deshacer.`)
-  if(!confirmed) return
-  await db.ref("clients").child(id).remove()
-}
+async function markClientAlert(clientId, clientName){
+  const msg=prompt(`Describe el problema para ${clientName}:`, "Dato incorrecto")
+  if(msg===null) return
 
-async function saveUserAccess(){
-  const email = document.getElementById("uEmail").value.trim().toLowerCase()
-  const password = document.getElementById("uPassword").value.trim()
-  const role = document.getElementById("uRole").value
-
-  if(!email || !password){
-    alert("Completá email y contraseña")
-    return
+  const alertData={
+    clientId,
+    clientName,
+    message:(msg||"Sin detalle").trim(),
+    reportedBy:currentUser?.email||"desconocido",
+    status:"open",
+    createdAt:new Date().toISOString()
   }
 
-  await db.ref("users_by_email").child(emailKey(email)).set({
-    email,
-    password,
-    role,
-    active: true,
-    createdAt: new Date().toISOString(),
-    createdBy: currentUser.email
-  })
+  await db.ref("client_alerts").push(alertData)
+  alert("Alerta enviada")
 
-  document.getElementById("uEmail").value = ""
-  document.getElementById("uPassword").value = ""
+  if(SLACK_WEBHOOK_URL){
+    try{
+      await fetch(SLACK_WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:`🚨 *Alerta de cliente*\nCliente: ${alertData.clientName}\nEmail: ${alertData.reportedBy}\nDetalle: ${alertData.message}`})})
+    }catch(err){
+      console.warn("No se pudo notificar a Slack", err)
+    }
+  }
+}
+
+function loadOperatorAlerts(){
+  const container=document.getElementById("operatorAlerts")
+  if(!container) return
+
+  db.ref("client_alerts").off()
+  db.ref("client_alerts").on("value", snap=>{
+    const items=Object.entries(snap.val()||{}).filter(([,a])=>a.status!=='resolved').sort((a,b)=>new Date(b[1].createdAt||0)-new Date(a[1].createdAt||0))
+    if(!items.length){container.innerHTML="<p class='small'>Sin alertas abiertas.</p>"; return}
+
+    container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:760px"><thead><tr><th>Cliente</th><th>Detalle</th><th>Reportado por</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+      ${items.map(([id,a])=>`<tr><td>${htmlEscape(a.clientName||"-")}</td><td>${htmlEscape(a.message||"-")}</td><td>${htmlEscape(a.reportedBy||"-")}</td><td>${a.createdAt?new Date(a.createdAt).toLocaleString():"-"}</td><td><span class="badge warn">Abierta</span></td><td><button class="ghost" onclick="resolveAlert('${id}')">Marcar resuelta</button></td></tr>`).join("")}
+    </tbody></table></div>`
+  })
+}
+
+async function resolveAlert(id){await db.ref("client_alerts").child(id).update({status:"resolved",resolvedAt:new Date().toISOString(),resolvedBy:currentUser.email})}
+
+async function saveUserAccess(){
+  const email=document.getElementById("uEmail").value.trim().toLowerCase()
+  const password=document.getElementById("uPassword").value.trim()
+  const role=document.getElementById("uRole").value
+  if(!email||!password) return alert("Completá email y contraseña")
+
+  await db.ref("users_by_email").child(emailKey(email)).set({email,password,role,active:true,createdAt:new Date().toISOString(),createdBy:currentUser.email})
+  document.getElementById("uEmail").value=""; document.getElementById("uPassword").value=""
   alert("Usuario guardado correctamente")
 }
 
 function loadUsersAdmin(){
-  const container = document.getElementById("usersList")
+  const container=document.getElementById("usersList")
   if(!container) return
 
   db.ref("users_by_email").off()
-  db.ref("users_by_email").on("value", snap => {
-    const items = Object.entries(snap.val() || {})
-    if(!items.length){
-      container.innerHTML = "Sin usuarios cargados"
-      return
-    }
+  db.ref("users_by_email").on("value", snap=>{
+    const items=Object.entries(snap.val()||{})
+    if(!items.length){container.innerHTML="Sin usuarios cargados"; return}
 
-    container.innerHTML = items.map(([k,u]) => {
-      const isSelf = u.email?.toLowerCase() === currentUser.email?.toLowerCase()
-      return `
-        <div class="card" style="padding:10px;margin:6px 0">
-          <div class="inline" style="justify-content:space-between">
-            <div>
-              <strong>${htmlEscape(u.email || "-")}</strong><br>
-              <span class="small">Rol: ${htmlEscape(u.role || "-")} · Clave: ${htmlEscape(u.password || "-")}</span>
-            </div>
-            <button class="danger" ${isSelf ? "disabled" : ""} onclick="deleteUserAccess('${k}', '${u.email || ''}')">Eliminar</button>
-          </div>
-        </div>
-      `
+    container.innerHTML=items.map(([k,u])=>{
+      const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
+      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Clave: ${htmlEscape(u.password||"-")}</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
     }).join("")
   })
 }
 
-async function deleteUserAccess(key, email){
-  const ok = confirm(`¿Eliminar acceso para ${email}?`)
-  if(!ok) return
-  await db.ref("users_by_email").child(key).remove()
+async function changeUserPassword(key){
+  const email=(await db.ref("users_by_email").child(key).once("value")).val()?.email||"usuario"
+  const next=prompt(`Nueva contraseña para ${email}:`,"")
+  if(next===null) return
+  if(!next.trim()) return alert("La contraseña no puede quedar vacía")
+  await db.ref("users_by_email").child(key).update({password:next.trim(),updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  alert("Contraseña actualizada")
 }
 
+async function deleteUserAccess(key,email){if(!confirm(`¿Eliminar acceso para ${email}?`)) return; await db.ref("users_by_email").child(key).remove()}
+
 function loadOperatorsLastAccess(){
-  const container = document.getElementById("operatorsLastAccess")
+  const container=document.getElementById("operatorsLastAccess")
   if(!container) return
 
-  db.ref("users_by_email").on("value", snap => {
-    const users = Object.values(snap.val() || {}).filter(u => u.role === "operator")
-    if(!users.length){
-      container.innerHTML = "<p class='small'>No hay operadores registrados.</p>"
-      return
-    }
-
-    container.innerHTML = `
-      <div class="tableWrap">
-        <table class="table" style="min-width:500px">
-          <thead><tr><th>Email</th><th>Último acceso</th></tr></thead>
-          <tbody>
-            ${users.map(u => `
-              <tr>
-                <td>${htmlEscape(u.email || "-")}</td>
-                <td>${u.lastAccessAt ? new Date(u.lastAccessAt).toLocaleString() : "Sin acceso aún"}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-    `
+  db.ref("users_by_email").on("value", snap=>{
+    const users=Object.values(snap.val()||{}).filter(u=>u.role==="operator")
+    if(!users.length){container.innerHTML="<p class='small'>No hay operadores registrados.</p>"; return}
+    container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:500px"><thead><tr><th>Email</th><th>Último acceso</th></tr></thead><tbody>${users.map(u=>`<tr><td>${htmlEscape(u.email||"-")}</td><td>${u.lastAccessAt?new Date(u.lastAccessAt).toLocaleString():"Sin acceso aún"}</td></tr>`).join("")}</tbody></table></div>`
   })
 }
 
-async function init(){
-  // Siempre mostrar login. No bloqueamos la UI por reglas de Firebase.
-  renderLogin()
-
-  // Intentamos crear el admin por defecto en DB (best effort).
-  await ensureSuperAdmin()
-}
-
+async function init(){renderLogin(); await ensureSuperAdmin()}
 init()
 </script>
 </body>
