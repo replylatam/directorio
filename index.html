@@ -98,6 +98,8 @@ let extractedSecret=null
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
 const SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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" // webhook Slack para alertas
+const SLACK_BOT_TOKEN="" // opcional: xoxb-... para responder en hilo al resolver
+const SLACK_CHANNEL_ID="" // opcional: ID de canal (ej: C0123456789)
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -349,6 +351,41 @@ async function editClient(id){
 async function toggleClientSwitch(id,checked){await db.ref("clients").child(id).update({active:checked})}
 async function deleteClient(id,name){if(!confirm(`¿Seguro que querés borrar el cliente "${name}"? Esta acción no se puede deshacer.`)) return; await db.ref("clients").child(id).remove()}
 
+async function postSlackMessage(text, threadTs=""){
+  if(SLACK_BOT_TOKEN && SLACK_CHANNEL_ID){
+    try{
+      const payload={channel:SLACK_CHANNEL_ID,text}
+      if(threadTs) payload.thread_ts=threadTs
+
+      const res=await fetch("https://slack.com/api/chat.postMessage",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${SLACK_BOT_TOKEN}`},
+        body:JSON.stringify(payload)
+      })
+
+      const data=await res.json()
+      if(data.ok) return {ok:true,ts:data.ts}
+      console.warn("Slack API devolvió error:", data)
+      return {ok:false,error:data.error||"slack_api_error"}
+    }catch(err){
+      console.warn("No se pudo notificar a Slack por API:", err)
+      return {ok:false,error:String(err)}
+    }
+  }
+
+  if(SLACK_WEBHOOK_URL){
+    try{
+      await fetch(SLACK_WEBHOOK_URL,{method:"POST",mode:"no-cors",body:JSON.stringify({text})})
+      return {ok:true,ts:null}
+    }catch(err){
+      console.warn("No se pudo notificar a Slack por webhook:", err)
+      return {ok:false,error:String(err)}
+    }
+  }
+
+  return {ok:false,error:"no_slack_config"}
+}
+
 async function markClientAlert(clientId, clientName){
   const msg=prompt(`Describe el problema para ${clientName}:`, "Dato incorrecto")
   if(msg===null) return
@@ -362,16 +399,19 @@ async function markClientAlert(clientId, clientName){
     createdAt:new Date().toISOString()
   }
 
-  await db.ref("client_alerts").push(alertData)
+  const newAlertRef=db.ref("client_alerts").push()
+  await newAlertRef.set(alertData)
   alert("Alerta enviada")
 
-  if(SLACK_WEBHOOK_URL){
-    try{
-      await fetch(SLACK_WEBHOOK_URL,{method:"POST",mode:"no-cors",body:JSON.stringify({text:`🚨 *Alerta de cliente*\nCliente: ${alertData.clientName}\nEmail: ${alertData.reportedBy}\nDetalle: ${alertData.message}`})})
-    }catch(err){
-      console.warn("No se pudo notificar a Slack", err)
-      alert("La alerta se guardó, pero Slack no pudo enviarse desde el navegador. Si persiste, hay que hacerlo vía backend.")
-    }
+  const openText=`🚨 *Alerta de cliente*\nCliente: ${alertData.clientName}\nReportado por: ${alertData.reportedBy}\nDetalle: ${alertData.message}`
+  const openSlackResult=await postSlackMessage(openText)
+
+  if(openSlackResult.ok && openSlackResult.ts){
+    await newAlertRef.update({slackThreadTs:openSlackResult.ts,slackChannelId:SLACK_CHANNEL_ID||null})
+  }
+
+  if(!openSlackResult.ok){
+    alert("La alerta se guardó, pero Slack no pudo enviarse desde el navegador. Si persiste, hay que hacerlo vía backend.")
   }
 }
 
@@ -390,7 +430,21 @@ function loadOperatorAlerts(){
   })
 }
 
-async function resolveAlert(id){await db.ref("client_alerts").child(id).update({status:"resolved",resolvedAt:new Date().toISOString(),resolvedBy:currentUser.email})}
+async function resolveAlert(id){
+  const alertRef=db.ref("client_alerts").child(id)
+  const snap=await alertRef.once("value")
+  const alertData=snap.val()||{}
+  const resolvedAt=new Date().toISOString()
+
+  await alertRef.update({status:"resolved",resolvedAt,resolvedBy:currentUser.email})
+
+  const resolvedText=`✅ *Problema resuelto*\nCliente: ${alertData.clientName||"-"}\nAlerta original de: ${alertData.reportedBy||"desconocido"}\nResuelto por: ${currentUser.email}`
+  const resolvedSlackResult=await postSlackMessage(resolvedText, alertData.slackThreadTs||"")
+
+  if(!resolvedSlackResult.ok){
+    console.warn("No se pudo avisar resolución en Slack:", resolvedSlackResult.error)
+  }
+}
 
 async function saveUserAccess(){
   const email=document.getElementById("uEmail").value.trim().toLowerCase()
