@@ -97,7 +97,7 @@ let extractedSecret=null
 
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
-const SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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" // opcional: pegar webhook de Slack para alertas
+const SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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" // webhook Slack para alertas
 
 function base32ToUint8(base32){
   const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
@@ -367,9 +367,10 @@ async function markClientAlert(clientId, clientName){
 
   if(SLACK_WEBHOOK_URL){
     try{
-      await fetch(SLACK_WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:`🚨 *Alerta de cliente*\nCliente: ${alertData.clientName}\nEmail: ${alertData.reportedBy}\nDetalle: ${alertData.message}`})})
+      await fetch(SLACK_WEBHOOK_URL,{method:"POST",mode:"no-cors",body:JSON.stringify({text:`🚨 *Alerta de cliente*\nCliente: ${alertData.clientName}\nEmail: ${alertData.reportedBy}\nDetalle: ${alertData.message}`})})
     }catch(err){
       console.warn("No se pudo notificar a Slack", err)
+      alert("La alerta se guardó, pero Slack no pudo enviarse desde el navegador. Si persiste, hay que hacerlo vía backend.")
     }
   }
 }
