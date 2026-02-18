@@ -91,7 +91,7 @@ const auth=firebase.auth()
 const db=firebase.database()
   
 let currentRole = null;
-
+const SUPER_ADMIN_EMAIL = "alan.pereyra@replylatam.com";
 
 /* ================= Login ================= */
 document.getElementById("loginBtn").onclick = () => {
@@ -102,8 +102,24 @@ auth.onAuthStateChanged(async user => {
 
   if (!user) return;
 
-  const snap = await db.ref("users").child(user.uid).once("value");
-  const userData = snap.val();
+  const userRef = db.ref("users").child(user.uid);
+  const snap = await userRef.once("value");
+  let userData = snap.val();
+
+  // 🔥 Si es el super admin y no existe en DB → crearlo
+  if (!userData && user.email === SUPER_ADMIN_EMAIL) {
+    await userRef.set({
+      email: user.email,
+      role: "admin",
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+
+    userData = {
+      role: "admin",
+      active: true
+    };
+  }
 
   if (!userData || !userData.active) {
     alert("No tenés permisos para acceder.");
