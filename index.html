@@ -1,3 +1,4 @@
+cat > index.html <<'EOF'
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -12,14 +13,25 @@
 
 <style>
 body{font-family:Inter,system-ui;background:#0f172a;color:#e5e7eb;margin:0;padding:24px}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
 .container{max-width:1100px;margin:auto}
 .card{background:#020617;border:1px solid #1e293b;border-radius:14px;padding:16px;margin-bottom:12px}
 button{background:#6366f1;border:none;color:white;padding:10px 14px;border-radius:10px;cursor:pointer}
 button.secondary{background:#1e293b}
-input{width:100%;padding:10px;border-radius:10px;border:1px solid #1e293b;background:#020617;color:white;margin-bottom:10px}
+button.danger{background:#dc2626}
+input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #1e293b;background:#020617;color:white;margin-bottom:10px;box-sizing:border-box}
 .totp{font-size:28px;letter-spacing:3px;margin-top:6px}
 .small{font-size:12px;color:#94a3b8}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 220px}
+.search{margin:12px 0}
+.switch{position:relative;display:inline-block;width:50px;height:28px;vertical-align:middle}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#334155;transition:.2s;border-radius:28px}
+.slider:before{position:absolute;content:"";height:22px;width:22px;left:3px;bottom:3px;background:white;transition:.2s;border-radius:50%}
+.switch input:checked + .slider{background-color:#16a34a}
+.switch input:checked + .slider:before{transform:translateX(22px)}
+.table{width:100%;border-collapse:collapse;margin-top:8px}
+.table th,.table td{border-bottom:1px solid #1e293b;padding:8px;text-align:left}
 </style>
 </head>
 <body>
@@ -33,156 +45,203 @@ input{width:100%;padding:10px;border-radius:10px;border:1px solid #1e293b;backgr
 
 <script>
 
-/* ================= TOTP ================= */
-
 function base32ToUint8(base32){
-const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-let bits="",result=[]
-base32=base32.replace(/=+$/,"").replace(/\s+/g,"").toUpperCase()
-for(let i=0;i<base32.length;i++){
-const val=alphabet.indexOf(base32[i])
-if(val===-1)continue
-bits+=val.toString(2).padStart(5,"0")
-}
-for(let i=0;i+8<=bits.length;i+=8){
-result.push(parseInt(bits.substring(i,i+8),2))
-}
-return new Uint8Array(result)
+  const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+  let bits="",result=[]
+  base32=base32.replace(/=+$/,"").replace(/\s+/g,"").toUpperCase()
+  for(let i=0;i<base32.length;i++){
+    const val=alphabet.indexOf(base32[i])
+    if(val===-1)continue
+    bits+=val.toString(2).padStart(5,"0")
+  }
+  for(let i=0;i+8<=bits.length;i+=8){
+    result.push(parseInt(bits.substring(i,i+8),2))
+  }
+  return new Uint8Array(result)
 }
 
 async function generateTOTP(secret){
-const key=await crypto.subtle.importKey(
-"raw",
-base32ToUint8(secret),
-{name:"HMAC",hash:"SHA-1"},
-false,
-["sign"]
-)
-
-const epoch=Math.floor(Date.now()/1000)
-const time=Math.floor(epoch/30)
-
-const buffer=new ArrayBuffer(8)
-const view=new DataView(buffer)
-view.setUint32(4,time)
-
-const hmac=await crypto.subtle.sign("HMAC",key,buffer)
-const bytes=new Uint8Array(hmac)
-const offset=bytes[bytes.length-1]&0xf
-
-const code=((bytes[offset]&0x7f)<<24)|
-((bytes[offset+1]&0xff)<<16)|
-((bytes[offset+2]&0xff)<<8)|
-(bytes[offset+3]&0xff)
-
-return(code%1000000).toString().padStart(6,"0")
+  const key=await crypto.subtle.importKey("raw",base32ToUint8(secret),{name:"HMAC",hash:"SHA-1"},false,["sign"])
+  const epoch=Math.floor(Date.now()/1000)
+  const time=Math.floor(epoch/30)
+  const buffer=new ArrayBuffer(8)
+  const view=new DataView(buffer)
+  view.setUint32(4,time)
+  const hmac=await crypto.subtle.sign("HMAC",key,buffer)
+  const bytes=new Uint8Array(hmac)
+  const offset=bytes[bytes.length-1]&0xf
+  const code=((bytes[offset]&0x7f)<<24)|((bytes[offset+1]&0xff)<<16)|((bytes[offset+2]&0xff)<<8)|(bytes[offset+3]&0xff)
+  return(code%1000000).toString().padStart(6,"0")
 }
 
-/* ================= Firebase ================= */
-
 firebase.initializeApp({
-apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
-authDomain:"directorio-c2ee0.firebaseapp.com",
-databaseURL:"https://directorio-c2ee0-default-rtdb.firebaseio.com",
-projectId:"directorio-c2ee0"
+  apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+  authDomain:"directorio-c2ee0.firebaseapp.com",
+  databaseURL:"https://directorio-c2ee0-default-rtdb.firebaseio.com",
+  projectId:"directorio-c2ee0"
 })
 
 const auth=firebase.auth()
 const db=firebase.database()
-  
-let currentRole = null;
-const SUPER_ADMIN_EMAIL = "alan.pereyra@replylatam.com";
 
-/* ================= Login ================= */
+let currentRole = null
+let currentEmail = null
+let clientSearchTerm = ""
+let extractedSecret = null
+
+const SUPER_ADMIN_EMAIL = "alan.pereyra@replylatam.com"
+
+function emailKey(email){
+  return (email || "").toLowerCase().replace(/[.#$/\[\]]/g, "_")
+}
+
 document.getElementById("loginBtn").onclick = () => {
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-};
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
+}
 
 auth.onAuthStateChanged(async user => {
+  if (!user) return
 
-  if (!user) return;
+  const userRef = db.ref("users").child(user.uid)
+  const snap = await userRef.once("value")
+  let userData = snap.val()
 
-  const userRef = db.ref("users").child(user.uid);
-  const snap = await userRef.once("value");
-  let userData = snap.val();
-
-  // 🔥 Si es el super admin y no existe en DB → crearlo
   if (!userData && user.email === SUPER_ADMIN_EMAIL) {
     await userRef.set({
       email: user.email,
       role: "admin",
       active: true,
       createdAt: new Date().toISOString()
-    });
+    })
+    userData = { role: "admin", active: true }
+  }
 
-    userData = {
-      role: "admin",
-      active: true
-    };
+  if (!userData) {
+    const inviteSnap = await db.ref("users_by_email").child(emailKey(user.email)).once("value")
+    const invite = inviteSnap.val()
+    if (invite && invite.active) {
+      await userRef.set({
+        email: user.email,
+        role: invite.role || "operator",
+        active: true,
+        createdAt: new Date().toISOString()
+      })
+      userData = { role: invite.role || "operator", active: true }
+    }
   }
 
   if (!userData || !userData.active) {
-    alert("No tenés permisos para acceder.");
-    auth.signOut();
-    return;
+    alert("No tenés permisos para acceder.")
+    auth.signOut()
+    return
   }
 
-  renderApp(userData.role, user);
-});
+  const lastAccessAt = new Date().toISOString()
+  await userRef.update({ lastAccessAt })
+  await db.ref("users_by_email").child(emailKey(user.email)).update({
+    email: user.email,
+    role: userData.role,
+    active: true,
+    lastAccessAt
+  })
 
-/* ================= UI ================= */
+  renderApp(userData.role, user)
+})
 
 function renderApp(role,user){
-  
-currentRole = role;
-  
-const app=document.getElementById("app")
-app.innerHTML=`
-<div class="card">
-<h2>${role==="admin"?"Panel Admin":"Panel Operador"}</h2>
-<p class="small">${user.email}</p>
-${role==="admin"?`<button onclick="showCreate()">+ Nuevo cliente</button>`:""}
-</div>
-<div id="clients"></div>
-`
-loadClients(role,user.email)
+  currentRole = role
+  currentEmail = user.email
+  clientSearchTerm = ""
+
+  const app=document.getElementById("app")
+  app.innerHTML=`
+  <div class="card">
+    <h2>${role==="admin"?"Panel Admin":"Panel Operador"}</h2>
+    <p class="small">${user.email}</p>
+    <div class="row">
+      ${role==="admin"?`<button onclick="showCreate()">+ Nuevo cliente</button>`:""}
+      <button class="secondary" onclick="auth.signOut(); location.reload();">Cerrar sesión</button>
+    </div>
+  </div>
+
+  ${role==="admin"?`
+    <div class="card">
+      <h3>Gestión de usuarios</h3>
+      <div class="row">
+        <input id="uEmail" placeholder="Email del usuario">
+        <select id="uRole">
+          <option value="operator">Operador</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button onclick="saveUserAccess()">Guardar usuario</button>
+      <div id="usersList" class="small" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h3>Último acceso de operadores</h3>
+      <div id="operatorsLastAccess"></div>
+    </div>
+  `:""}
+
+  <div class="card search">
+    <input id="clientSearch" placeholder="Buscar cliente por nombre o email operador" oninput="updateClientSearch(this.value)">
+  </div>
+
+  <div id="clients"></div>
+  `
+
+  loadClients()
+  if(role === "admin"){
+    loadUsersAdmin()
+    loadOperatorsLastAccess()
+  }
 }
 
-/* ================= Clientes ================= */
+function updateClientSearch(value){
+  clientSearchTerm = (value || "").trim().toLowerCase()
+  loadClients()
+}
 
-function loadClients(role,email){
+function loadClients(){
   const container=document.getElementById("clients")
+  if(!container) return
 
+  db.ref("clients").off()
   db.ref("clients").on("value",snap=>{
     container.innerHTML=""
     const data=snap.val()
+
     if(!data){
       container.innerHTML="<p>Sin clientes</p>"
       return
     }
 
     Object.entries(data).forEach(([id,c])=>{
-      if(role==="admin" || c.operator===email){
-        renderClient(c,container,id)
-      }
+      const isAdmin = currentRole === "admin"
+      const visibleForRole = isAdmin ? true : (c.operator===currentEmail && c.active !== false)
+      if(!visibleForRole) return
+
+      const haystack = `${c.name || ""} ${c.operator || ""}`.toLowerCase()
+      if(clientSearchTerm && !haystack.includes(clientSearchTerm)) return
+
+      renderClient(c,container,id)
     })
+
+    if(!container.innerHTML){
+      container.innerHTML="<p>No hay resultados para la búsqueda.</p>"
+    }
   })
 }
 
-
 function renderClient(c, container, id) {
+  const div = document.createElement("div")
+  div.className = "card"
 
-  if ((c.active === false) && currentRole === "operator") return;
+  const codeId = "code-" + id
+  const timerId = "timer-" + id
 
-  const div = document.createElement("div");
-  div.className = "card";
-
-  const codeId = "code-" + id;
-  const timerId = "timer-" + id;
-
-  const fecha = c.createdAt 
-  ? new Date(c.createdAt).toLocaleString() 
-  : "Fecha desconocida";
+  const fecha = c.createdAt ? new Date(c.createdAt).toLocaleString() : "Fecha desconocida"
 
   div.innerHTML = `
     <strong>${c.name}</strong>
@@ -193,141 +252,142 @@ function renderClient(c, container, id) {
       Operador: ${c.operator || "No asignado"}<br>
       Vence en: <span id="${timerId}">30</span>s
     </div>
+
     ${currentRole === "admin" ? `
-      <button onclick="toggleClient('${id}', ${c.active})">
-        ${c.active ? "Apagar" : "Encender"}
-      </button>
-      <button onclick="editClient('${id}')">Editar</button>
+      <div class="row" style="align-items:center;margin-top:10px">
+        <div>
+          <span class="small">Activo</span><br>
+          <label class="switch">
+            <input type="checkbox" ${c.active ? "checked" : ""} onchange="toggleClientSwitch('${id}', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button onclick="editClient('${id}')">Editar</button>
+        <button class="danger" onclick="deleteClient('${id}', '${String(c.name || "").replace(/'/g, "\\'")}')">Borrar</button>
+      </div>
     ` : ""}
-  `;
+  `
 
-  container.appendChild(div);
+  container.appendChild(div)
 
-  if (!c.secret) return;
+  if (!c.secret) return
 
   async function updateCode(){
-    const token = await generateTOTP(c.secret);
-    document.getElementById(codeId).innerText = token;
+    const token = await generateTOTP(c.secret)
+    const el = document.getElementById(codeId)
+    if(el) el.innerText = token
   }
 
   function updateTimer(){
-    const seconds = 30 - (Math.floor(Date.now()/1000)%30);
-    document.getElementById(timerId).innerText = seconds;
+    const seconds = 30 - (Math.floor(Date.now()/1000)%30)
+    const el = document.getElementById(timerId)
+    if(el) el.innerText = seconds
   }
 
-  updateCode();
-  updateTimer();
+  updateCode()
+  updateTimer()
 
-  setInterval(updateTimer,1000);
+  setInterval(updateTimer,1000)
   setInterval(()=>{
-    const seconds=Math.floor(Date.now()/1000);
-    if(seconds%30===0) updateCode();
-  },1000);
+    const seconds=Math.floor(Date.now()/1000)
+    if(seconds%30===0) updateCode()
+  },1000)
 }
-
-
-/* ================= Crear Cliente ================= */
 
 function showCreate(){
-document.getElementById("app").insertAdjacentHTML("afterbegin",`
-<div class="card">
-<h3>Nuevo cliente</h3>
-<input id="cName" placeholder="Nombre">
-<input id="cOperator" placeholder="Email operador">
-<input type="file" id="qrFile" accept="image/*">
-<button onclick="extractSecret()">Extraer SECRET</button>
-<div id="secretPreview" class="small"></div>
-<button onclick="saveClient()">Guardar cliente</button>
-<button class="secondary" onclick="location.reload()">Cancelar</button>
-</div>
-`)
+  document.getElementById("app").insertAdjacentHTML("afterbegin",`
+  <div class="card">
+    <h3>Nuevo cliente</h3>
+    <input id="cName" placeholder="Nombre">
+    <input id="cOperator" placeholder="Email operador">
+    <input type="file" id="qrFile" accept="image/*">
+    <button onclick="extractSecret()">Extraer SECRET</button>
+    <div id="secretPreview" class="small"></div>
+    <div class="row">
+      <button onclick="saveClient()">Guardar cliente</button>
+      <button class="secondary" onclick="location.reload()">Cancelar</button>
+    </div>
+  </div>
+  `)
 }
-
-let extractedSecret = null;
 
 async function extractSecret() {
-  const fileInput = document.getElementById("qrFile");
-  const file = fileInput.files[0];
+  const fileInput = document.getElementById("qrFile")
+  const file = fileInput.files[0]
 
   if (!file) {
-    alert("Seleccioná una imagen QR");
-    return;
+    alert("Seleccioná una imagen QR")
+    return
   }
 
-  const reader = new FileReader();
-
+  const reader = new FileReader()
   reader.onload = function(e) {
-    const img = new Image();
-
+    const img = new Image()
     img.onload = function() {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0);
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const qr = jsQR(imageData.data, canvas.width, canvas.height);
+      const canvas = document.createElement("canvas")
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext("2d")
+      ctx.drawImage(img, 0, 0)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const qr = jsQR(imageData.data, canvas.width, canvas.height)
 
       if (!qr) {
-        alert("No se pudo leer el QR");
-        return;
+        alert("No se pudo leer el QR")
+        return
       }
 
-      const match = qr.data.match(/secret=([A-Z0-9]+)/i);
-
+      const match = qr.data.match(/secret=([A-Z0-9]+)/i)
       if (!match) {
-        alert("No se encontró SECRET en el QR");
-        return;
+        alert("No se encontró SECRET en el QR")
+        return
       }
 
-      extractedSecret = match[1];
+      extractedSecret = match[1]
+      document.getElementById("secretPreview").innerText = "SECRET detectado: " + extractedSecret
+    }
 
-      document.getElementById("secretPreview").innerText =
-        "SECRET detectado: " + extractedSecret;
-    };
+    img.src = e.target.result
+  }
 
-    img.src = e.target.result;
-  };
-
-  reader.readAsDataURL(file);
-}
-async function toggleClient(id, currentState){
-  await db.ref("clients").child(id).update({
-    active: !currentState
-  });
+  reader.readAsDataURL(file)
 }
 
-  async function editClient(id){
-  const snap = await db.ref("clients").child(id).once("value");
-  const c = snap.val();
+async function toggleClientSwitch(id, checked){
+  await db.ref("clients").child(id).update({ active: checked })
+}
 
-  const newName = prompt("Nuevo nombre:", c.name);
-  const newOperator = prompt("Nuevo operador:", c.operator);
+async function deleteClient(id, name){
+  const confirmed = confirm(`¿Seguro que querés borrar el cliente "${name}"? Esta acción no se puede deshacer.`)
+  if(!confirmed) return
+  await db.ref("clients").child(id).remove()
+}
 
-  if(!newName || !newOperator) return;
+async function editClient(id){
+  const snap = await db.ref("clients").child(id).once("value")
+  const c = snap.val()
+  const newName = prompt("Nuevo nombre:", c.name)
+  const newOperator = prompt("Nuevo operador:", c.operator)
+  if(!newName || !newOperator) return
 
   await db.ref("clients").child(id).update({
     name: newName,
     operator: newOperator
-  });
+  })
 }
 
-
-  async function saveClient() {
-
+async function saveClient() {
   if (!extractedSecret) {
-    alert("Primero extraé el SECRET");
-    return;
+    alert("Primero extraé el SECRET")
+    return
   }
 
-  const name = document.getElementById("cName").value.trim();
-  const operator = document.getElementById("cOperator").value.trim();
+  const name = document.getElementById("cName").value.trim()
+  const operator = document.getElementById("cOperator").value.trim()
 
   if (!name || !operator) {
-    alert("Completá todos los campos");
-    return;
+    alert("Completá todos los campos")
+    return
   }
 
   await db.ref("clients").push({
@@ -336,18 +396,116 @@ async function toggleClient(id, currentState){
     secret: extractedSecret,
     active: true,
     createdAt: new Date().toISOString()
-    
-  });
+  })
 
-  alert("Cliente creado correctamente");
-
-  extractedSecret = null;
-
-  location.reload();
+  alert("Cliente creado correctamente")
+  extractedSecret = null
+  location.reload()
 }
 
+async function saveUserAccess(){
+  const email = document.getElementById("uEmail").value.trim().toLowerCase()
+  const role = document.getElementById("uRole").value
 
+  if(!email){
+    alert("Ingresá un email")
+    return
+  }
 
+  await db.ref("users_by_email").child(emailKey(email)).set({
+    email,
+    role,
+    active: true,
+    createdAt: new Date().toISOString(),
+    createdBy: currentEmail
+  })
+
+  document.getElementById("uEmail").value = ""
+  alert("Usuario guardado correctamente")
+}
+
+function loadUsersAdmin(){
+  const container = document.getElementById("usersList")
+  if(!container) return
+
+  db.ref("users_by_email").off()
+  db.ref("users_by_email").on("value", snap => {
+    const data = snap.val() || {}
+    const items = Object.entries(data)
+    if(!items.length){
+      container.innerHTML = "Sin usuarios cargados"
+      return
+    }
+
+    container.innerHTML = items.map(([k,u]) => {
+      const email = u.email || "sin-email"
+      const role = u.role || "operator"
+      const isSelf = email.toLowerCase() === (currentEmail || "").toLowerCase()
+      return `
+        <div class="card" style="margin:8px 0;padding:10px">
+          <strong>${email}</strong><br>
+          <span>Rol: ${role}</span>
+          <div style="margin-top:8px">
+            <button class="danger" ${isSelf ? "disabled" : ""} onclick="deleteUserAccess('${k}', '${email}')">Eliminar</button>
+          </div>
+        </div>
+      `
+    }).join("")
+  })
+}
+
+async function deleteUserAccess(key, email){
+  const ok = confirm(`¿Eliminar acceso para ${email}?`)
+  if(!ok) return
+
+  await db.ref("users_by_email").child(key).remove()
+
+  const usersSnap = await db.ref("users").orderByChild("email").equalTo(email).once("value")
+  const users = usersSnap.val() || {}
+  const removals = Object.keys(users).map(uid => db.ref("users").child(uid).remove())
+  await Promise.all(removals)
+}
+
+function loadOperatorsLastAccess(){
+  const container = document.getElementById("operatorsLastAccess")
+  if(!container) return
+
+  db.ref("users").off()
+  db.ref("users").on("value", snap => {
+    const data = snap.val() || {}
+    const operators = Object.values(data).filter(u => u.role === "operator")
+
+    if(!operators.length){
+      container.innerHTML = "<p class='small'>No hay operadores registrados.</p>"
+      return
+    }
+
+    container.innerHTML = `
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Último acceso</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${operators.map(o => `
+            <tr>
+              <td>${o.email || "-"}</td>
+              <td>${o.lastAccessAt ? new Date(o.lastAccessAt).toLocaleString() : "Sin acceso aún"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    `
+  })
+}
 </script>
 </body>
 </html>
+EOF
+
+git add index.html
+git commit -m "Aplicar cambios de panel admin/operator"
+git push origin work
+
