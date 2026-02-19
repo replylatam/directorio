@@ -88,6 +88,31 @@ firebase.initializeApp({
 })
 
 const auth=firebase.auth()
+
+  auth.onAuthStateChanged(async (firebaseUser) => {
+  if(!firebaseUser){
+    renderLogin()
+    return
+  }
+
+  const dbUser = await getUserFromDb(firebaseUser.email)
+
+  if(!dbUser || !dbUser.active){
+    alert("Usuario sin permisos")
+    await auth.signOut()
+    return
+  }
+
+  currentUser = firebaseUser
+  currentRole = dbUser.role
+
+  await db.ref("users_by_email")
+    .child(emailKey(firebaseUser.email))
+    .update({lastAccessAt:new Date().toISOString()})
+
+  renderApp()
+})
+
 const db=firebase.database()
 
 let currentUser=null
@@ -194,25 +219,18 @@ function renderLogin(){
 }
 
 async function handleLogin(){
-  const email=document.getElementById("loginEmail").value.trim().toLowerCase()
-  const password=document.getElementById("loginPassword").value
-  if(!email||!password) return alert("Completá email y contraseña")
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase()
+  const password = document.getElementById("loginPassword").value
 
-  const fallbackUser=getFallbackUser(email,password)
-  const dbUser=await getUserFromDb(email)
-  const user=fallbackUser||dbUser
+  if(!email || !password) return alert("Completá email y contraseña")
 
-  if(!user||!user.active) return alert("Usuario sin permisos o inactivo")
-  if(!fallbackUser && user.password!==password) return alert("Contraseña incorrecta")
-
-  currentUser=user
-  currentRole=user.role
-  revealedTotpByClient={}
-  clientsCache={}
-  try{await db.ref("users_by_email").child(emailKey(email)).update({lastAccessAt:new Date().toISOString()})}catch(_){ }
-  await logActivity("login")
-  renderApp()
+  try {
+    await auth.signInWithEmailAndPassword(email, password)
+  } catch(err) {
+    alert("Email o contraseña incorrectos")
+  }
 }
+
 
 function logout(){currentUser=null;currentRole=null;extractedSecret=null;renderLogin()}
 
@@ -540,12 +558,26 @@ async function saveUserAccess(){
   const email=document.getElementById("uEmail").value.trim().toLowerCase()
   const password=document.getElementById("uPassword").value.trim()
   const role=document.getElementById("uRole").value
+
   if(!email||!password) return alert("Completá email y contraseña")
 
-  await db.ref("users_by_email").child(emailKey(email)).set({email,password,role,active:true,createdAt:new Date().toISOString(),createdBy:currentUser.email})
-  document.getElementById("uEmail").value=""; document.getElementById("uPassword").value=""
-  alert("Usuario guardado correctamente")
+  try{
+    await auth.createUserWithEmailAndPassword(email,password)
+
+    await db.ref("users_by_email").child(emailKey(email)).set({
+      email,
+      role,
+      active:true,
+      createdAt:new Date().toISOString(),
+      createdBy:currentUser.email
+    })
+
+    alert("Usuario creado correctamente")
+  }catch(err){
+    alert("Error creando usuario: "+err.message)
+  }
 }
+
 
 function loadUsersAdmin(){
   const container=document.getElementById("usersList")
