@@ -257,6 +257,11 @@ async function handleLogin(){
     .child(emailKey(email))
     .update({lastAccessAt:new Date().toISOString()})
 
+   // 🔵 LOG DE INICIO DE SESIÓN
+  logActivity("login", {
+    userAgent: navigator.userAgent
+  }).catch(()=>{})
+
   renderApp()
 }
 
