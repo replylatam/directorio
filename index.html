@@ -608,12 +608,17 @@ function loadUsersAdmin(){
 
   db.ref("users_by_email").off()
   db.ref("users_by_email").on("value", snap=>{
-    const items=Object.entries(snap.val()||{})
+  const items=Object.entries(snap.val()||{}).filter(([,u])=>{
+  const isSuper = (u.email||"").toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
+  const isSelf  = (u.email||"").toLowerCase() === (currentUser.email||"").toLowerCase()
+  // El super admin solo se ve a sí mismo
+  return !isSuper || isSelf
+})
     if(!items.length){container.innerHTML="Sin usuarios cargados"; return}
 
     container.innerHTML=items.map(([k,u])=>{
       const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
-      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Clave: ${htmlEscape(u.password||"-")}</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
+      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Clave: Oculta</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
     }).join("")
   })
 }
