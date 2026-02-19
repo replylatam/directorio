@@ -420,10 +420,18 @@ function attachTotpLive(id,c){
 async function revealTotp(clientId, clientName){
   const expiresAt=(Math.floor(Date.now()/30000)+1)*30000
   revealedTotpByClient[clientId]={expiresAt}
-  await logActivity("totp_obtener",{clientId,clientName})
+
+  const codeEl=document.getElementById(`code-${clientId}`)
+  const timerEl=document.getElementById(`timer-${clientId}`)
+  if(codeEl) codeEl.innerText="Generando..."
+  if(timerEl) timerEl.innerText="30"
+
   const clientData=clientsCache[clientId]
-  if(clientData) attachTotpLive(clientId,clientData)
+  if(clientData) attachTotpLive(clientId, clientData)
+  // si querés, podés NO llamar loadClients() acá y evitar re-render (más rápido todavía)
   loadClients()
+
+  logActivity("totp_obtener",{clientId,clientName}).catch(()=>{})
 }
 
 function openClientModal(){extractedSecret=null;document.getElementById("secretPreview").innerText="";document.getElementById("clientModal").classList.remove("hidden")}
