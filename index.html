@@ -48,6 +48,16 @@ textarea{min-height:86px;resize:vertical}
 .modal{width:min(760px,100%);max-height:90vh;overflow:auto}
 .hidden{display:none!important}
 @media (max-width:768px){h2{font-size:22px}h3{font-size:18px}.row>*{flex:1 1 100%}.table{min-width:800px}}
+.kpiGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.kpiGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{padding:12px;border:1px solid var(--stroke);border-radius:14px;background:rgba(2,6,23,.35)}
+.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.kpi .value{font-size:22px;margin-top:4px}
+.feedItem{padding:10px;border:1px solid rgba(148,163,184,.14);border-radius:12px;background:rgba(2,6,23,.25);margin-bottom:8px}
+.feedTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.feedType{font-weight:600}
+.feedMeta{font-size:12px;color:var(--muted);margin-top:4px}
+
 </style>
 </head>
 <body>
@@ -270,6 +280,29 @@ function renderApp(){
             <button class="secondary" onclick="logout()">Cerrar sesión</button>
           </div>
         </div>
+
+        ${role==="admin" ? `
+          <div style="margin-top:14px">
+            <h3 style="margin:0 0 10px">Resumen</h3>
+
+            <div class="kpiGrid">
+              <div class="kpi"><div class="label">Clientes</div><div class="value" id="kpiTotalClients">-</div></div>
+              <div class="kpi"><div class="label">Activos</div><div class="value" id="kpiActiveClients">-</div></div>
+              <div class="kpi"><div class="label">Inactivos</div><div class="value" id="kpiInactiveClients">-</div></div>
+              <div class="kpi"><div class="label">Alertas abiertas</div><div class="value" id="kpiOpenAlerts">-</div></div>
+              <div class="kpi"><div class="label">Operadores</div><div class="value" id="kpiOperators">-</div></div>
+              <div class="kpi"><div class="label">Último acceso</div><div class="value" style="font-size:14px;margin-top:8px" id="kpiLastAccess">-</div></div>
+            </div>
+
+            <div style="margin-top:14px">
+              <div class="inline" style="justify-content:space-between;align-items:center">
+                <h3 style="margin:0">Actividad reciente</h3>
+                <button class="ghost" onclick="loadDashboard()">Actualizar</button>
+              </div>
+              <div id="recentActivity" style="margin-top:10px"></div>
+            </div>
+          </div>
+        ` : ``}
       </div>
 
       ${role==="admin"?`
@@ -297,7 +330,10 @@ function renderApp(){
 
     <div class="card" id="clientsContainer"></div>
 
-    ${role==="admin"?`<div class="card"><h3 style="margin-top:0">Alertas de operadores</h3><div id="operatorAlerts"></div></div><div class="card"><h3 style="margin-top:0">Último acceso de operadores</h3><div id="operatorsLastAccess"></div></div>`:""}
+    ${role==="admin"?`
+      <div class="card"><h3 style="margin-top:0">Alertas de operadores</h3><div id="operatorAlerts"></div></div>
+      <div class="card"><h3 style="margin-top:0">Último acceso de operadores</h3><div id="operatorsLastAccess"></div></div>
+    `:""}
   `
 
   loadClients()
@@ -305,8 +341,10 @@ function renderApp(){
     loadUsersAdmin()
     loadOperatorsLastAccess()
     loadOperatorAlerts()
+    loadDashboard()
   }
 }
+
 
 function updateClientSearch(value){clientSearchTerm=(value||"").trim().toLowerCase();loadClients()}
 
@@ -645,6 +683,122 @@ function loadOperatorsLastAccess(){
   })
 }
 
+function formatWhen(iso){
+  if(!iso) return ""
+  try{
+    const d=new Date(iso)
+    return d.toLocaleString()
+  }catch(_){ return iso }
+}
+
+function jsonp(url){
+  return new Promise((resolve,reject)=>{
+    const cb="cb_"+Math.random().toString(36).slice(2)
+    const s=document.createElement("script")
+    const timeout=setTimeout(()=>{
+      cleanup()
+      reject(new Error("JSONP timeout"))
+    },8000)
+
+    function cleanup(){
+      clearTimeout(timeout)
+      delete window[cb]
+      if(s.parentNode) s.parentNode.removeChild(s)
+    }
+
+    window[cb]=(data)=>{ cleanup(); resolve(data) }
+
+    s.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cb
+    s.onerror=()=>{ cleanup(); reject(new Error("JSONP error")) }
+    document.body.appendChild(s)
+  })
+}
+
+async function loadDashboard(){
+  if(currentRole!=="admin") return
+
+  // KPIs: clientes
+  try{
+    const clientsSnap = await db.ref("clients").once("value")
+    const clients = clientsSnap.val() || {}
+    const total = Object.keys(clients).length
+    let active=0, inactive=0
+    Object.values(clients).forEach(c=>{
+      if(c && c.active===false) inactive++
+      else active++
+    })
+    const el = document.getElementById("kpiTotalClients")
+if(el) el.innerText = total
+    const elA = document.getElementById("kpiActiveClients")
+if(elA) elA.innerText = active
+const elI = document.getElementById("kpiInactiveClients")
+if(elI) elI.innerText = inactive
+
+  }catch(_){}
+
+  // KPIs: alertas abiertas
+  try{
+    const alertsSnap = await db.ref("client_alerts").once("value")
+    const alerts = alertsSnap.val() || {}
+    const open = Object.values(alerts).filter(a=>a && a.status!=="resolved").length
+    const elOpen = document.getElementById("kpiOpenAlerts")
+if(elOpen) elOpen.innerText = open
+  }catch(_){}
+
+  // KPIs: operadores + último acceso
+try{
+  const usersSnap = await db.ref("users_by_email").once("value")
+  const users = Object.values(usersSnap.val() || {})
+  const ops = users.filter(u=>u && u.role==="operator")
+
+  const elOps = document.getElementById("kpiOperators")
+  if(elOps) elOps.innerText = ops.length
+
+  const last = ops
+    .map(u=>u.lastAccessAt ? new Date(u.lastAccessAt).getTime() : 0)
+    .sort((a,b)=>b-a)[0] || 0
+
+  const elLast = document.getElementById("kpiLastAccess")
+  if(elLast) elLast.innerText = last ? new Date(last).toLocaleString() : "Sin accesos"
+}catch(_){}
+
+  // Actividad reciente desde Sheets (JSONP)
+  const container = document.getElementById("recentActivity")
+  if(container) container.innerHTML = `<p class="small">Cargando actividad…</p>`
+
+  try{
+    const url = `${SHEETS_WEBHOOK_URL}?action=recent&limit=10`
+    const res = await jsonp(url)
+    const items = (res && res.ok && Array.isArray(res.items)) ? res.items : []
+
+    if(!items.length){
+      container.innerHTML = `<p class="small">Sin actividad reciente.</p>`
+      return
+    }
+
+    container.innerHTML = items.map(it=>{
+      const who = it.email || "sin-usuario"
+      const when = it.timestampIso ? formatWhen(it.timestampIso) : (it.timestampLocal || "")
+      const extra = it.clientName ? ` · ${htmlEscape(it.clientName)}` : ""
+      return `
+        <div class="feedItem">
+          <div class="feedTop">
+            <div>
+              <div class="feedType">${htmlEscape(it.eventType || "evento")}${extra}</div>
+              <div class="feedMeta">${htmlEscape(who)} · ${htmlEscape(when)}</div>
+            </div>
+            <span class="badge ${it.role==="admin"?"ok":"warn"}">${htmlEscape(it.role||"-")}</span>
+          </div>
+        </div>
+      `
+    }).join("")
+  }catch(err){
+    console.warn("No se pudo leer actividad reciente:", err)
+    if(container) container.innerHTML = `<p class="small">No se pudo cargar la actividad reciente.</p>`
+  }
+}
+ 
+  
 async function init(){renderLogin(); await ensureSuperAdmin()}
 init()
 </script>
