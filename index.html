@@ -135,6 +135,9 @@ async function generateTOTP(secret){
 function emailKey(email){return (email||"").toLowerCase().replace(/[.#$/\[\]]/g,"_")}
 function htmlEscape(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
 
+const SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/AKfycbzb1jsnEXf2-pPlj4XqXv74IX18DTefCsQ6YIO9AmulRh8_w2-oiX_62ZleSJ587ABP/exec";
+const SHEETS_TOKEN=""; // si en Apps Script pusiste SHARED_TOKEN, pegalo acá
+
 async function logActivity(eventType, details={}){
   const payload={
     eventType,
@@ -142,26 +145,52 @@ async function logActivity(eventType, details={}){
     role:currentRole||"sin-rol",
     timestampIso:new Date().toISOString(),
     timestampLocal:new Date().toLocaleString(),
-    sheetId:SHEET_ID,
     ...details
+  };
+
+  if(!SHEETS_WEBHOOK_URL){
+    console.warn("SHEETS_WEBHOOK_URL no configurado", payload);
+    return;
   }
 
-  if(SHEETS_WEBHOOK_URL){
-    try{
-      await fetch(SHEETS_WEBHOOK_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
-    }catch(err){
-      console.warn("Falló POST hacia Google Sheets, intento fallback GET", err)
-      try{
-        const q=encodeURIComponent(JSON.stringify(payload))
-        await fetch(`${SHEETS_WEBHOOK_URL}?payload=${q}`,{method:"GET",mode:"no-cors"})
-      }catch(err2){
-        console.warn("No se pudo enviar log a Google Sheets (webhook)", err2)
-      }
-    }
-  }else{
-    console.warn("SHEETS_WEBHOOK_URL no configurado: no se registró el evento", payload)
+  // POST principal
+  try{
+    await fetch(`${SHEETS_WEBHOOK_URL}?token=${encodeURIComponent(SHEETS_TOKEN)}`,{
+      method:"POST",
+      mode:"no-cors",
+      body:JSON.stringify(payload)
+    });
+    return;
+  }catch(err){
+    console.warn("Falló POST hacia Sheets, fallback GET", err);
+  }
+
+  // Fallback GET
+  try{
+    const q=encodeURIComponent(JSON.stringify(payload));
+    await fetch(`${SHEETS_WEBHOOK_URL}?token=${encodeURIComponent(SHEETS_TOKEN)}&payload=${q}`,{
+      method:"GET",
+      mode:"no-cors"
+    });
+  }catch(err2){
+    console.warn("No se pudo enviar log a Sheets", err2);
   }
 }
+
+async function migrateActivityLogsToSheets(){
+  const snap = await db.ref("activity_logs").once("value");
+  const data = snap.val() || {};
+  const entries = Object.entries(data);
+
+  for (const [id, payload] of entries){
+    try{
+      await fetch(SHEETS_WEBHOOK_URL, { method:"POST", mode:"no-cors", body: JSON.stringify({ ...payload, firebaseId:id }) });
+    }catch(_){}
+  }
+
+  alert(`Migración terminada. Enviados: ${entries.length}`);
+}
+
 
 async function ensureSuperAdmin(){
   const key=emailKey(SUPER_ADMIN_EMAIL)
