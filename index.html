@@ -107,25 +107,7 @@ textarea{min-height:86px;resize:vertical}
     <div id="secretPreview" class="small" style="margin-top:8px"></div>
   </div>
 </div>
-    <div class="row">
-      <div><label>Cliente</label><input id="cClientName"></div>
-      <div><label>Contraseña</label><input id="cPassword"></div>
-    </div>
-    <div class="row">
-      <div><label>País</label><input id="cCountry"></div>
-      <div><label>Email</label><input id="cEmail"></div>
-    </div>
-    <div><label>Notas</label><textarea id="cNotes"></textarea></div>
-    <div><label>QR de autenticación</label><input type="file" id="qrFile" accept="image/*"></div>
-    <div class="inline" style="justify-content:flex-end;margin-top:4px">
-      <button class="ghost" onclick="extractSecret()">Extraer SECRET</button>
-      <button onclick="saveClient()">Guardar cliente</button>
-      <button class="secondary" onclick="closeClientModal()">Cancelar</button>
-    </div>
-    <div id="secretPreview" class="small" style="margin-top:8px"></div>
-  </div>
-</div>
-
+    
 <script>
 firebase.initializeApp({
   apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
