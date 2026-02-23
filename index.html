@@ -66,9 +66,47 @@ textarea{min-height:86px;resize:vertical}
 <div id="clientModal" class="modalBack hidden">
   <div class="card modal">
     <div class="inline" style="justify-content:space-between;margin-bottom:8px">
-      <h3 style="margin:0">Nuevo cliente</h3>
+      <h3 id="modalTitle" style="margin:0">Nuevo cliente</h3>
       <button class="secondary" onclick="closeClientModal()">Cerrar</button>
     </div>
+
+    <div class="row">
+      <div><label>Cliente</label><input id="cClientName"></div>
+      <div><label>Contraseña</label><input id="cPassword"></div>
+    </div>
+
+    <div class="row">
+      <div><label>País</label><input id="cCountry"></div>
+      <div><label>Email</label><input id="cEmail"></div>
+    </div>
+
+    <div><label>Notas</label><textarea id="cNotes"></textarea></div>
+
+    <div class="inline" style="justify-content:space-between;margin:8px 0 6px">
+      <div class="inline">
+        <label style="margin:0">Cargar sin QR</label>
+        <label class="switch" style="margin:0">
+          <input type="checkbox" id="cNoQr" onchange="toggleNoQr(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <span class="small">Si activás esto, el cliente queda sin TOTP.</span>
+    </div>
+
+    <div>
+      <label>QR de autenticación</label>
+      <input type="file" id="qrFile" accept="image/*">
+    </div>
+
+    <div class="inline" style="justify-content:flex-end;margin-top:4px">
+      <button class="ghost" onclick="extractSecret()" id="btnExtractSecret">Extraer SECRET</button>
+      <button onclick="saveClient()" id="btnSaveClient">Guardar cliente</button>
+      <button class="secondary" onclick="closeClientModal()">Cancelar</button>
+    </div>
+
+    <div id="secretPreview" class="small" style="margin-top:8px"></div>
+  </div>
+</div>
     <div class="row">
       <div><label>Cliente</label><input id="cClientName"></div>
       <div><label>Contraseña</label><input id="cPassword"></div>
@@ -107,6 +145,9 @@ let extractedSecret=null
 let clientsCache={}
 let revealedTotpByClient={}
 let totpIntervalsById={}
+let modalMode="create"          // create | edit
+let editingClientId=null
+let existingSecret=null         // secret ya guardado en DB (para editar sin re-subir QR)
 
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
@@ -368,6 +409,29 @@ function clearTotpInterval(clientId){
   delete totpIntervalsById[clientId]
 }
 
+function toggleNoQr(isChecked){
+  const qrInput = document.getElementById("qrFile")
+  const btnExtract = document.getElementById("btnExtractSecret")
+  const preview = document.getElementById("secretPreview")
+
+  if(isChecked){
+    if(qrInput) { qrInput.value=""; qrInput.disabled=true }
+    if(btnExtract) btnExtract.disabled=true
+    extractedSecret=null
+    if(preview) preview.innerText="Cargar sin QR activado: el cliente quedará sin TOTP."
+  }else{
+    if(qrInput) qrInput.disabled=false
+    if(btnExtract) btnExtract.disabled=false
+
+    // si estoy editando y existía un secret, lo aviso
+    if(modalMode==="edit" && existingSecret){
+      if(preview) preview.innerText="Este cliente ya tiene SECRET guardado. No hace falta volver a subir QR."
+    }else{
+      if(preview && !extractedSecret) preview.innerText=""
+    }
+  }
+}
+
 function loadClients(){
   const container=document.getElementById("clientsContainer")
   if(!container) return
@@ -420,7 +484,7 @@ function loadClients(){
                 <td class="mono" id="code-${id}">${isOperatorTotpVisible(id)?"------":"Presioná Obtener"}</td>
                 <td class="small"><span id="timer-${id}">${isOperatorTotpVisible(id)?"30":"-"}</span>${isOperatorTotpVisible(id)?"s":""}</td>
                 ${currentRole==="admin"?`<td><label class="switch"><input type="checkbox" ${c.active?"checked":""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
-                <td><div class="inline"><button class="ghost" onclick="editClient('${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
+                <td><div class="inline"><button class="ghost" onclick="openClientModal('edit','${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
                 `<td><div class="inline"><button class="ghost" ${isOperatorTotpVisible(id)?"disabled":""} onclick="revealTotp('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">${isOperatorTotpVisible(id)?"Obtenido":"Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></div></td>`}
               </tr>`
             }).join("")}
@@ -477,8 +541,65 @@ async function revealTotp(clientId, clientName){
   logActivity("totp_obtener",{clientId,clientName}).catch(()=>{})
 }
 
-function openClientModal(){extractedSecret=null;document.getElementById("secretPreview").innerText="";document.getElementById("clientModal").classList.remove("hidden")}
-function closeClientModal(){document.getElementById("clientModal").classList.add("hidden")}
+function resetClientModalFields(){
+  document.getElementById("cClientName").value=""
+  document.getElementById("cPassword").value=""
+  document.getElementById("cCountry").value=""
+  document.getElementById("cEmail").value=""
+  document.getElementById("cNotes").value=""
+  document.getElementById("qrFile").value=""
+  document.getElementById("cNoQr").checked=false
+  document.getElementById("secretPreview").innerText=""
+  extractedSecret=null
+  existingSecret=null
+
+  // re-habilitar QR por defecto
+  toggleNoQr(false)
+}
+
+function openClientModal(mode="create", clientId=null){
+  modalMode = mode
+  editingClientId = clientId
+
+  resetClientModalFields()
+
+  const titleEl = document.getElementById("modalTitle")
+  const saveBtn = document.getElementById("btnSaveClient")
+  if(titleEl) titleEl.innerText = (mode==="edit") ? "Editar cliente" : "Nuevo cliente"
+  if(saveBtn) saveBtn.innerText = (mode==="edit") ? "Guardar cambios" : "Guardar cliente"
+
+  document.getElementById("clientModal").classList.remove("hidden")
+
+  if(mode==="edit" && clientId){
+    // cargar datos existentes
+    db.ref("clients").child(clientId).once("value").then(snap=>{
+      const c = snap.val() || {}
+      document.getElementById("cClientName").value = c.clientName || c.name || ""
+      document.getElementById("cPassword").value = c.password || ""
+      document.getElementById("cCountry").value = c.country || ""
+      document.getElementById("cEmail").value = (c.email || "").toLowerCase()
+      document.getElementById("cNotes").value = c.notes || ""
+
+      // si ya tenía secret, lo guardo para no obligar a volver a cargar QR
+      existingSecret = c.secret || null
+      extractedSecret = null
+
+      if(existingSecret){
+        document.getElementById("secretPreview").innerText = "Este cliente ya tiene SECRET guardado. No hace falta volver a subir QR."
+      }else{
+        document.getElementById("secretPreview").innerText = "Este cliente no tiene SECRET. Podés cargar QR o activar 'Cargar sin QR'."
+      }
+    })
+  }
+}
+
+function closeClientModal(){
+  document.getElementById("clientModal").classList.add("hidden")
+  modalMode="create"
+  editingClientId=null
+  extractedSecret=null
+  existingSecret=null
+}
 
 async function extractSecret(){
   const file=document.getElementById("qrFile")?.files?.[0]
@@ -503,27 +624,58 @@ async function extractSecret(){
 }
 
 async function saveClient(){
-  if(!extractedSecret) return alert("Primero extraé el SECRET")
   const clientName=document.getElementById("cClientName").value.trim()
   const password=document.getElementById("cPassword").value.trim()
   const country=document.getElementById("cCountry").value.trim()
   const email=document.getElementById("cEmail").value.trim().toLowerCase()
   const notes=document.getElementById("cNotes").value.trim()
+  const noQr=document.getElementById("cNoQr").checked
+
   if(!clientName||!password||!country||!email) return alert("Completá Cliente, Contraseña, País y Email")
 
-  await db.ref("clients").push({clientName,name:clientName,password,country,email,notes,secret:extractedSecret,active:true,createdAt:new Date().toISOString(),createdBy:currentUser.email})
-  alert("Cliente creado correctamente")
-  closeClientModal()
-}
+  // secret final:
+  // - si noQr => null (sin TOTP)
+  // - si subieron QR y extrajeron => extractedSecret
+  // - si están editando y no subieron QR => mantener existingSecret
+  let finalSecret = null
 
-async function editClient(id){
-  const c=(await db.ref("clients").child(id).once("value")).val()||{}
-  const nextClient=prompt("Cliente:",c.clientName||c.name||""); if(nextClient===null) return
-  const nextPass=prompt("Contraseña:",c.password||""); if(nextPass===null) return
-  const nextCountry=prompt("País:",c.country||""); if(nextCountry===null) return
-  const nextEmail=prompt("Email:",c.email||""); if(nextEmail===null) return
-  const nextNotes=prompt("Notas:",c.notes||""); if(nextNotes===null) return
-  await db.ref("clients").child(id).update({clientName:nextClient,name:nextClient,password:nextPass,country:nextCountry,email:nextEmail.toLowerCase(),notes:nextNotes})
+  if(noQr){
+    finalSecret = null
+  }else{
+    finalSecret = extractedSecret || existingSecret || null
+    if(!finalSecret){
+      return alert("Cargá QR y extraé SECRET, o activá 'Cargar sin QR'.")
+    }
+  }
+
+  const baseData = {
+    clientName,
+    name:clientName,
+    password,
+    country,
+    email,
+    notes,
+    secret: finalSecret
+  }
+
+  if(modalMode==="edit" && editingClientId){
+    await db.ref("clients").child(editingClientId).update({
+      ...baseData,
+      updatedAt:new Date().toISOString(),
+      updatedBy:currentUser.email
+    })
+    alert("Cliente actualizado correctamente")
+  }else{
+    await db.ref("clients").push({
+      ...baseData,
+      active:true,
+      createdAt:new Date().toISOString(),
+      createdBy:currentUser.email
+    })
+    alert("Cliente creado correctamente")
+  }
+
+  closeClientModal()
 }
 
 async function toggleClientSwitch(id,checked){await db.ref("clients").child(id).update({active:checked})}
