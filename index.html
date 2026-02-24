@@ -307,78 +307,59 @@ async function handleLogin(){
 
 function logout(){currentUser=null;currentRole=null;extractedSecret=null;renderLogin()}
 
-function renderApp(){
-  const role=currentRole
-  const email=currentUser.email
+function renderApp() {
+  const role = currentRole;
+  const email = currentUser.email;
 
-  document.getElementById("app").innerHTML=`
+  document.getElementById("app").innerHTML = `
     <div class="grid">
       <div class="card">
         <div class="inline" style="justify-content:space-between">
           <div>
             <h2 style="margin:0">Directorio de clientes - Reply Latam</h2>
-            <p class="small" style="margin:6px 0 0">${role==="admin"?"Panel Admin":"Panel Operador"} · ${htmlEscape(email)}</p>
+            <p class="small" style="margin:6px 0 0">
+              ${role === "superadmin" ? "Panel Superadmin" : role === "admin" ? `Panel Admin · ${htmlEscape(currentArea || "ACCO")}` : `Panel Operador · ${htmlEscape(currentArea || "ACCO")}`}
+              · ${htmlEscape(email)}
+            </p>
           </div>
           <div class="inline">
-            ${role==="admin"?`<button onclick="openClientModal()">+ Nuevo cliente</button>`:""}
+            ${
+              (currentRole === "admin" || currentRole === "superadmin")
+                ? `<button onclick="openClientModal()">+ Nuevo cliente</button>`
+                : ""
+            }
             <button class="secondary" onclick="logout()">Cerrar sesión</button>
           </div>
         </div>
 
-        ${role==="admin" ? `
-          <div style="margin-top:14px">
-            <h3 style="margin:0 0 10px">Resumen</h3>
-
-            <div class="kpiGrid">
-              <div class="kpi"><div class="label">Clientes</div><div class="value" id="kpiTotalClients">-</div></div>
-              <div class="kpi"><div class="label">Activos</div><div class="value" id="kpiActiveClients">-</div></div>
-              <div class="kpi"><div class="label">Inactivos</div><div class="value" id="kpiInactiveClients">-</div></div>
-              <div class="kpi"><div class="label">Alertas abiertas</div><div class="value" id="kpiOpenAlerts">-</div></div>
-              <div class="kpi"><div class="label">Operadores</div><div class="value" id="kpiOperators">-</div></div>
-              <div class="kpi"><div class="label">Último acceso</div><div class="value" style="font-size:14px;margin-top:8px" id="kpiLastAccess">-</div></div>
-            </div>
-
+        ${
+          role === "admin"
+            ? `
             <div style="margin-top:14px">
-              <div class="inline" style="justify-content:space-between;align-items:center">
-                <h3 style="margin:0">Actividad reciente</h3>
-                <button class="ghost" onclick="loadDashboard()">Actualizar</button>
+              <h3 style="margin:0 0 10px">Resumen</h3>
+              <div class="kpiGrid">
+                <div class="kpi"><div class="label">Clientes</div><div class="value" id="kpiTotalClients">-</div></div>
+                <div class="kpi"><div class="label">Activos</div><div class="value" id="kpiActiveClients">-</div></div>
+                <div class="kpi"><div class="label">Inactivos</div><div class="value" id="kpiInactiveClients">-</div></div>
+                <div class="kpi"><div class="label">Alertas abiertas</div><div class="value" id="kpiOpenAlerts">-</div></div>
+                <div class="kpi"><div class="label">Operadores</div><div class="value" id="kpiOperators">-</div></div>
+                <div class="kpi"><div class="label">Último acceso</div><div class="value" style="font-size:14px;margin-top:8px" id="kpiLastAccess">-</div></div>
               </div>
-              <div id="recentActivity" style="margin-top:10px"></div>
+              <div style="margin-top:14px">
+                <div class="inline" style="justify-content:space-between;align-items:center">
+                  <h3 style="margin:0">Actividad reciente</h3>
+                  <button class="ghost" onclick="loadDashboard()">Actualizar</button>
+                </div>
+                <div id="recentActivity" style="margin-top:10px"></div>
+              </div>
             </div>
-          </div>
-        ` : ``}
+            `
+            : ``
+        }
       </div>
-
-      ${role==="admin"?`
-      <div class="card">
-        <h3 style="margin-top:0">Gestión de usuarios</h3>
-        <div class="row">
-          <div><label>Email</label><input id="uEmail"></div>
-          <div><label>Contraseña</label><input id="uPassword" type="text"></div>
-        </div>
-        <div class="row">
-          <div><label>Rol</label><select id="uRole"><option value="operator">Operador</option><option value="admin">Admin</option></select></div>
-          <div style="display:flex;align-items:flex-end"><button onclick="saveUserAccess()">Guardar usuario</button></div>
-        </div>
-        <div id="usersList" class="small"></div>
-      </div>`:"<div></div>"}
     </div>
-
-    <div class="card">
-      <div class="inline" style="justify-content:space-between;margin-bottom:10px">
-        <h3 style="margin:0">Clientes</h3>
-        <span class="small">${role==="admin"?"Vista admin":"Viendo todos los clientes activos"}</span>
-      </div>
-      <div class="searchWrap"><input oninput="updateClientSearch(this.value)"></div>
-    </div>
-
-    <div class="card" id="clientsContainer"></div>
-
-    ${role==="admin"?`
-      <div class="card"><h3 style="margin-top:0">Alertas de operadores</h3><div id="operatorAlerts"></div></div>
-      <div class="card"><h3 style="margin-top:0">Último acceso de operadores</h3><div id="operatorsLastAccess"></div></div>
-    `:""}
-  `
+  `;
+}
 
   loadClients()
   if(role==="admin"){
