@@ -98,6 +98,11 @@ textarea{min-height:86px;resize:vertical}
 
     <div><label>Notas</label><textarea id="cNotes"></textarea></div>
 
+    <div>
+      <label>Área</label>
+      <select id="cArea"></select>
+    </div>
+
     <div class="inline" style="justify-content:space-between;margin:8px 0 6px">
       <div class="inline">
         <label style="margin:0">Cargar sin QR</label>
@@ -303,7 +308,7 @@ async function handleLogin(){
     return alert("Contraseña incorrecta")
   }
 
-  currentUser = { email: user.email }
+  currentUser = { email: user.email, area: user.area || "" }
   currentRole = user.role
 
   await db.ref("users_by_email")
@@ -372,7 +377,12 @@ function renderApp(){
         </div>
         <div class="row">
           <div><label>Rol</label><select id="uRole"><option value="operator">Operador</option><option value="admin">Admin</option></select></div>
+          <div><label>Área</label><select id="uArea"></select></div>
           <div style="display:flex;align-items:flex-end"><button onclick="saveUserAccess()">Guardar usuario</button></div>
+        </div>
+        <div class="inline" style="margin-top:6px">
+          <input id="newAreaName" placeholder="Nueva área (ej: ACCO)">
+          <button class="ghost" onclick="createArea()">Crear área</button>
         </div>
         <div id="usersList" class="small"></div>
       </div>`:"<div></div>"}
@@ -396,6 +406,7 @@ function renderApp(){
 
   loadClients()
   if(role==="admin"){
+    loadAreaOptions()
     loadUsersAdmin()
     loadOperatorsLastAccess()
     loadOperatorAlerts()
@@ -403,6 +414,49 @@ function renderApp(){
   }
 }
 
+
+
+async function createArea(){
+  if(currentRole!=="admin") return
+  const input=document.getElementById("newAreaName")
+  const name=(input?.value||"").trim().toUpperCase()
+  if(!name) return alert("Ingresá un nombre de área")
+
+  const key=name.replace(/\s+/g,"_")
+  await db.ref("areas").child(key).set({name})
+  if(input) input.value=""
+  await loadAreaOptions()
+  alert("Área creada")
+}
+
+async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
+  const snap=await db.ref("areas").once("value")
+  const areas=Object.values(snap.val()||{}).map(a=>String(a.name||"").trim().toUpperCase()).filter(Boolean)
+  const unique=[...new Set(areas)].sort()
+
+  const fill=(selectId, selected)=>{
+    const el=document.getElementById(selectId)
+    if(!el) return
+    el.innerHTML='<option value="">Sin área</option>' + unique.map(a=>`<option value="${htmlEscape(a)}">${htmlEscape(a)}</option>`).join("")
+    el.value=(selected||"").toUpperCase()
+    if(el.value!== (selected||"").toUpperCase()) el.value=""
+  }
+
+  fill("uArea", selectedUserArea)
+  fill("cArea", selectedClientArea)
+}
+
+function canSeeClientByArea(client){
+  if(currentRole==="admin") return true
+  const userArea=(currentUser?.area||"").trim().toUpperCase()
+  if(!userArea) return true
+
+  const clientArea=(client?.area||"").trim().toUpperCase()
+  const clientName=(client?.clientName||client?.name||"").trim().toUpperCase()
+
+  if(clientArea) return clientArea===userArea
+  return clientName.includes(userArea)
+}
 
 function updateClientSearch(value){clientSearchTerm=(value||"").trim().toLowerCase();loadClients()}
 
@@ -457,6 +511,7 @@ function loadClients(){
     Object.entries(data).forEach(([id,c])=>{
       const visibleForRole=currentRole==="admin"?true:(c.active!==false)
       if(!visibleForRole) return
+      if(!canSeeClientByArea(c)) return
 
       const clientName=c.clientName||c.name||""
       const country=c.country||""
@@ -481,12 +536,13 @@ function loadClients(){
     container.innerHTML=`
       <div class="tableWrap">
         <table class="table">
-          <thead><tr><th>Cliente</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
+          <thead><tr><th>Cliente</th><th>Área</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
           <tbody>
             ${rows.map(({id,c,clientName,country,notes})=>{
               const created=c.createdAt?new Date(c.createdAt).toLocaleString():"Fecha desconocida"
               return `<tr>
                 <td><strong>${htmlEscape(clientName||"-")}</strong></td>
+                <td>${htmlEscape(c.area||"-")}</td>
                 <td>${htmlEscape(c.password||"-")}</td>
                 <td>${htmlEscape(country||"-")}</td>
                 <td>${htmlEscape(notes||"-")}</td>
@@ -559,6 +615,7 @@ function resetClientModalFields(){
   document.getElementById("cCountry").value=""
   document.getElementById("cEmail").value=""
   document.getElementById("cNotes").value=""
+  const cArea=document.getElementById("cArea"); if(cArea) cArea.value=""
   document.getElementById("qrFile").value=""
   document.getElementById("cNoQr").checked=false
   document.getElementById("secretPreview").innerText=""
@@ -582,6 +639,8 @@ function openClientModal(mode="create", clientId=null){
 
   document.getElementById("clientModal").classList.remove("hidden")
 
+  loadAreaOptions("", "")
+
   if(mode==="edit" && clientId){
     // cargar datos existentes
     db.ref("clients").child(clientId).once("value").then(snap=>{
@@ -591,6 +650,7 @@ function openClientModal(mode="create", clientId=null){
       document.getElementById("cCountry").value = c.country || ""
       document.getElementById("cEmail").value = (c.email || "").toLowerCase()
       document.getElementById("cNotes").value = c.notes || ""
+      loadAreaOptions("", c.area || "")
 
       // si ya tenía secret, lo guardo para no obligar a volver a cargar QR
       existingSecret = c.secret || null
@@ -641,6 +701,7 @@ async function saveClient(){
   const country=document.getElementById("cCountry").value.trim()
   const email=document.getElementById("cEmail").value.trim().toLowerCase()
   const notes=document.getElementById("cNotes").value.trim()
+  const area=(document.getElementById("cArea")?.value||"").trim().toUpperCase()
   const noQr=document.getElementById("cNoQr").checked
 
   if(!clientName||!password||!country||!email) return alert("Completá Cliente, Contraseña, País y Email")
@@ -667,6 +728,7 @@ async function saveClient(){
     country,
     email,
     notes,
+    area,
     secret: finalSecret
   }
 
@@ -792,6 +854,7 @@ async function saveUserAccess(){
   const email=document.getElementById("uEmail").value.trim().toLowerCase()
   const password=document.getElementById("uPassword").value.trim()
   const role=document.getElementById("uRole").value
+  const area=(document.getElementById("uArea")?.value||"").trim().toUpperCase()
 
   if(!email||!password) return alert("Completá email y contraseña")
 
@@ -799,6 +862,7 @@ async function saveUserAccess(){
     email,
     password,
     role,
+    area,
     active:true,
     createdAt:new Date().toISOString(),
     createdBy:currentUser.email
@@ -825,9 +889,18 @@ function loadUsersAdmin(){
 
     container.innerHTML=items.map(([k,u])=>{
       const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
-      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Clave: Oculta</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
+      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Área: ${htmlEscape(u.area||"Sin área")} · Clave: Oculta</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="ghost" onclick="changeUserArea('${k}')">Cambiar área</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
     }).join("")
   })
+}
+
+async function changeUserArea(key){
+  const snap=await db.ref("users_by_email").child(key).once("value")
+  const user=snap.val()||{}
+  const next=prompt(`Nueva área para ${user.email||"usuario"} (vacío para quitar):`, (user.area||""))
+  if(next===null) return
+  await db.ref("users_by_email").child(key).update({area:next.trim().toUpperCase(),updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  alert("Área actualizada")
 }
 
 async function changeUserPassword(key){
@@ -899,7 +972,7 @@ async function loadDashboard(){
     const el = document.getElementById("kpiTotalClients")
 if(el) el.innerText = total
     const elA = document.getElementById("kpiActiveClients")
-if(elA) el.innerText = active
+if(elA) elA.innerText = active
 const elI = document.getElementById("kpiInactiveClients")
 if(elI) elI.innerText = inactive
 
