@@ -582,36 +582,20 @@ function loadClients() {
     container.innerHTML = "<p>Sin clientes</p>";
     return;
   }
-
-  const rows = [];
-  Object.entries(data).forEach(([id, c]) => {
-    // Filtrar clientes según área del usuario
-    const userArea = currentUser.area || ""; // Asumiendo que el área está guardada en el usuario
-    if (userArea && !c.clientName.toLowerCase().includes(userArea.toLowerCase())) return;
-
-    rows.push({
-      id,
-      c,
-      clientName: c.clientName,
-      country: c.country,
-      notes: c.notes
-    });
-  });
-
-    const rows = [];
+      const rows = [];
     Object.entries(data).forEach(([id, c]) => {
-      // Filtrar clientes según área del usuario
-      const userArea = currentUser.area || ""; // Asumiendo que el área está guardada en el usuario
-      if (userArea && !c.clientName.toLowerCase().includes(userArea.toLowerCase())) return;
+  // Filtrar clientes según área del usuario
+  const userArea = currentUser.area || ""; // Asumiendo que el área está guardada en el usuario
+  if (userArea && !c.clientName.toLowerCase().includes(userArea.toLowerCase())) return;
 
-      rows.push({
-        id,
-        c,
-        clientName: c.clientName,
-        country: c.country,
-        notes: c.notes
-      });
-    });
+  rows.push({
+    id,
+    c,
+    clientName: c.clientName,
+    country: c.country,
+    notes: c.notes
+  });
+});
 
     // Mostrar clientes
     container.innerHTML = `
@@ -1192,5 +1176,6 @@ init()
 </script>
 </body>
 </html>
+
 
 
