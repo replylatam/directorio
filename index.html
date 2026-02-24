@@ -577,11 +577,26 @@ function loadClients() {
 
   db.ref("clients").off();
   db.ref("clients").on("value", snap => {
-    const data = snap.val();
-    if (!data) {
-      container.innerHTML = "<p>Sin clientes</p>";
-      return;
-    }
+  const data = snap.val();
+  if (!data) {
+    container.innerHTML = "<p>Sin clientes</p>";
+    return;
+  }
+
+  const rows = [];
+  Object.entries(data).forEach(([id, c]) => {
+    // Filtrar clientes según área del usuario
+    const userArea = currentUser.area || ""; // Asumiendo que el área está guardada en el usuario
+    if (userArea && !c.clientName.toLowerCase().includes(userArea.toLowerCase())) return;
+
+    rows.push({
+      id,
+      c,
+      clientName: c.clientName,
+      country: c.country,
+      notes: c.notes
+    });
+  });
 
     const rows = [];
     Object.entries(data).forEach(([id, c]) => {
@@ -725,7 +740,14 @@ function openClientModal(mode="create", clientId=null) {
     document.getElementById("clientArea").style.display = "none"; // Oculta el campo "Área" si no es admin
   }
 
-  document.getElementById("clientModal").classList.remove("hidden")
+  // Mostrar u ocultar el campo "Área" según el rol
+if (currentRole === "admin") {
+  document.getElementById("clientArea").style.display = "block"; // Muestra el campo "Área" si es admin
+} else {
+  document.getElementById("clientArea").style.display = "none"; // Oculta el campo "Área" si no es admin
+}
+
+document.getElementById("clientModal").classList.remove("hidden");
 
   // Llamamos a la función para cargar las áreas en el selector
   async function loadAreasInClientModal() {
@@ -1170,4 +1192,5 @@ init()
 </script>
 </body>
 </html>
+
 
