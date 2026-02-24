@@ -128,7 +128,24 @@ textarea{min-height:86px;resize:vertical}
     <div id="secretPreview" class="small" style="margin-top:8px"></div>
   </div>
 </div>
-    
+
+
+<div id="userAreaModal" class="modalBack hidden">
+  <div class="card modal" style="max-width:520px">
+    <div class="inline" style="justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0">Cambiar área de usuario</h3>
+      <button class="secondary" onclick="closeUserAreaModal()">Cerrar</button>
+    </div>
+    <p class="small" id="userAreaModalLabel" style="margin-top:0"></p>
+    <label>Área</label>
+    <select id="userAreaModalSelect"></select>
+    <div class="inline" style="justify-content:flex-end">
+      <button onclick="saveUserAreaFromModal()">Guardar área</button>
+      <button class="secondary" onclick="closeUserAreaModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const firebaseConfig={
   apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
@@ -165,6 +182,10 @@ let totpIntervalsById={}
 let modalMode="create"          // create | edit
 let editingClientId=null
 let existingSecret=null         // secret ya guardado en DB (para editar sin re-subir QR)
+let editingUserKeyForArea=null
+let selectedClientIds={}
+let usersPage=1
+const USERS_PER_PAGE=3
 
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
@@ -394,6 +415,16 @@ function renderApp(){
         <span class="small">${role==="admin"?"Vista admin":"Viendo todos los clientes activos"}</span>
       </div>
       <div class="searchWrap"><input oninput="updateClientSearch(this.value)"></div>
+      ${role==="admin"?`
+      <div class="inline" style="margin-top:10px">
+        <button class="danger" onclick="bulkDeleteClients()">Eliminar seleccionados</button>
+        <button class="secondary" onclick="bulkSetClientsActive(false)">Inactivar seleccionados</button>
+        <button class="ghost" onclick="bulkSetClientsActive(true)">Activar seleccionados</button>
+        <select id="bulkAreaSelect" style="max-width:220px;margin:0"></select>
+        <button class="warn" onclick="bulkAssignArea()">Asignar área</button>
+      </div>
+      <p class="small" id="bulkSelectionInfo" style="margin:8px 0 0">0 clientes seleccionados</p>
+      `:""}
     </div>
 
     <div class="card" id="clientsContainer"></div>
@@ -404,6 +435,7 @@ function renderApp(){
     `:""}
   `
 
+  selectedClientIds={}
   loadClients()
   if(role==="admin"){
     loadAreaOptions()
@@ -411,6 +443,7 @@ function renderApp(){
     loadOperatorsLastAccess()
     loadOperatorAlerts()
     loadDashboard()
+    updateBulkSelectionInfo()
   }
 }
 
@@ -419,35 +452,82 @@ function renderApp(){
 async function createArea(){
   if(currentRole!=="admin") return
   const input=document.getElementById("newAreaName")
-  const name=(input?.value||"").trim().toUpperCase()
+  let name=(input?.value||"").trim().toUpperCase()
   if(!name) return alert("Ingresá un nombre de área")
+
+  if(isAreaScopedAdmin()){
+    const myArea=normalizeAreaName(currentUser?.area||"")
+    if(name!==myArea) return alert("Solo podés gestionar tu propia área")
+  }
 
   const key=name.replace(/\s+/g,"_")
   await db.ref("areas").child(key).set({name})
   if(input) input.value=""
   await loadAreaOptions()
+  if(currentRole==="admin") loadUsersAdmin()
   alert("Área creada")
 }
 
-async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
+function normalizeAreaName(value){
+  return String(value||"").trim().toUpperCase()
+}
+
+async function getAreaNames(){
   const snap=await db.ref("areas").once("value")
-  const areas=Object.values(snap.val()||{}).map(a=>String(a.name||"").trim().toUpperCase()).filter(Boolean)
-  const unique=[...new Set(areas)].sort()
+  const raw=snap.val()||{}
+  const names=[]
 
-  const fill=(selectId, selected)=>{
-    const el=document.getElementById(selectId)
-    if(!el) return
-    el.innerHTML='<option value="">Sin área</option>' + unique.map(a=>`<option value="${htmlEscape(a)}">${htmlEscape(a)}</option>`).join("")
-    el.value=(selected||"").toUpperCase()
-    if(el.value!== (selected||"").toUpperCase()) el.value=""
-  }
+  Object.entries(raw).forEach(([key,val])=>{
+    if(typeof val==="string"){
+      const n=normalizeAreaName(val)
+      if(n) names.push(n)
+      return
+    }
 
-  fill("uArea", selectedUserArea)
-  fill("cArea", selectedClientArea)
+    if(val && typeof val==="object"){
+      const fromName=normalizeAreaName(val.name||val.area||val.label)
+      if(fromName){
+        names.push(fromName)
+      }else{
+        const fromKey=normalizeAreaName(key)
+        if(fromKey) names.push(fromKey)
+      }
+    }
+  })
+
+  const unique=[...new Set(names)].sort()
+  if(isAreaScopedAdmin()) return unique.filter((a)=>a===normalizeAreaName(currentUser?.area||""))
+  return unique
+}
+
+function fillAreaSelect(selectId, areas, selected=""){
+  const el=document.getElementById(selectId)
+  if(!el) return
+  el.innerHTML='<option value="">Sin área</option>' + areas.map(a=>`<option value="${htmlEscape(a)}">${htmlEscape(a)}</option>`).join("")
+  const normalized=normalizeAreaName(selected)
+  el.value=normalized
+  if(el.value!==normalized) el.value=""
+}
+
+async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
+  const areas=await getAreaNames()
+  fillAreaSelect("uArea", areas, selectedUserArea)
+  fillAreaSelect("cArea", areas, selectedClientArea)
+  fillAreaSelect("userAreaModalSelect", areas, selectedUserArea)
+  fillAreaSelect("bulkAreaSelect", areas, selectedClientArea)
+}
+
+function isAreaScopedAdmin(){
+  return currentRole==="admin" && normalizeAreaName(currentUser?.area||"")!==""
+}
+
+function canAdminSeeArea(areaValue){
+  if(!isAreaScopedAdmin()) return true
+  return normalizeAreaName(areaValue)===normalizeAreaName(currentUser?.area||"")
 }
 
 function canSeeClientByArea(client){
-  if(currentRole==="admin") return true
+  if(currentRole==="admin") return canAdminSeeArea(client?.area||"")
   const userArea=(currentUser?.area||"").trim().toUpperCase()
   if(!userArea) return true
 
@@ -459,6 +539,60 @@ function canSeeClientByArea(client){
 }
 
 function updateClientSearch(value){clientSearchTerm=(value||"").trim().toLowerCase();loadClients()}
+
+function updateBulkSelectionInfo(){
+  const el=document.getElementById("bulkSelectionInfo")
+  if(!el) return
+  const count=Object.values(selectedClientIds).filter(Boolean).length
+  el.innerText=`${count} clientes seleccionados`
+}
+
+function toggleClientSelection(id, checked){
+  if(checked) selectedClientIds[id]=true
+  else delete selectedClientIds[id]
+  updateBulkSelectionInfo()
+}
+
+function toggleSelectAllClients(checked){
+  const rows=document.querySelectorAll(".clientSelectRow")
+  rows.forEach((cb)=>{
+    cb.checked=checked
+    const id=cb.getAttribute("data-id")
+    if(id){
+      if(checked) selectedClientIds[id]=true
+      else delete selectedClientIds[id]
+    }
+  })
+  updateBulkSelectionInfo()
+}
+
+function getSelectedClientIds(){
+  return Object.keys(selectedClientIds).filter((id)=>selectedClientIds[id])
+}
+
+async function bulkDeleteClients(){
+  const ids=getSelectedClientIds()
+  if(!ids.length) return alert("Seleccioná al menos un cliente")
+  if(!confirm(`¿Eliminar ${ids.length} clientes seleccionados?`)) return
+  await Promise.all(ids.map((id)=>db.ref("clients").child(id).remove()))
+  selectedClientIds={}
+  loadClients()
+}
+
+async function bulkSetClientsActive(active){
+  const ids=getSelectedClientIds()
+  if(!ids.length) return alert("Seleccioná al menos un cliente")
+  await Promise.all(ids.map((id)=>db.ref("clients").child(id).update({active})))
+  loadClients()
+}
+
+async function bulkAssignArea(){
+  const ids=getSelectedClientIds()
+  if(!ids.length) return alert("Seleccioná al menos un cliente")
+  const area=normalizeAreaName(document.getElementById("bulkAreaSelect")?.value||"")
+  await Promise.all(ids.map((id)=>db.ref("clients").child(id).update({area})))
+  loadClients()
+}
 
 function isOperatorTotpVisible(clientId){
   if(currentRole==="admin") return true
@@ -536,11 +670,12 @@ function loadClients(){
     container.innerHTML=`
       <div class="tableWrap">
         <table class="table">
-          <thead><tr><th>Cliente</th><th>Área</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
+          <thead><tr>${currentRole==="admin"?"<th><input type=\"checkbox\" onchange=\"toggleSelectAllClients(this.checked)\"></th>":""}<th>Cliente</th><th>Área</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
           <tbody>
             ${rows.map(({id,c,clientName,country,notes})=>{
               const created=c.createdAt?new Date(c.createdAt).toLocaleString():"Fecha desconocida"
               return `<tr>
+                ${currentRole==="admin"?`<td><input class="clientSelectRow" data-id="${id}" type="checkbox" ${selectedClientIds[id]?"checked":""} onchange="toggleClientSelection('${id}', this.checked)"></td>`:""}
                 <td><strong>${htmlEscape(clientName||"-")}</strong></td>
                 <td>${htmlEscape(c.area||"-")}</td>
                 <td>${htmlEscape(c.password||"-")}</td>
@@ -561,6 +696,7 @@ function loadClients(){
       </div>`
 
     rows.forEach(({id,c})=>{ if(isOperatorTotpVisible(id)) attachTotpLive(id,c) })
+    updateBulkSelectionInfo()
   })
 }
 
@@ -701,7 +837,8 @@ async function saveClient(){
   const country=document.getElementById("cCountry").value.trim()
   const email=document.getElementById("cEmail").value.trim().toLowerCase()
   const notes=document.getElementById("cNotes").value.trim()
-  const area=(document.getElementById("cArea")?.value||"").trim().toUpperCase()
+  let area=(document.getElementById("cArea")?.value||"").trim().toUpperCase()
+  if(isAreaScopedAdmin()) area=normalizeAreaName(currentUser?.area||"")
   const noQr=document.getElementById("cNoQr").checked
 
   if(!clientName||!password||!country||!email) return alert("Completá Cliente, Contraseña, País y Email")
@@ -854,7 +991,8 @@ async function saveUserAccess(){
   const email=document.getElementById("uEmail").value.trim().toLowerCase()
   const password=document.getElementById("uPassword").value.trim()
   const role=document.getElementById("uRole").value
-  const area=(document.getElementById("uArea")?.value||"").trim().toUpperCase()
+  let area=(document.getElementById("uArea")?.value||"").trim().toUpperCase()
+  if(isAreaScopedAdmin()) area=normalizeAreaName(currentUser?.area||"")
 
   if(!email||!password) return alert("Completá email y contraseña")
 
@@ -882,24 +1020,54 @@ function loadUsersAdmin(){
   const items=Object.entries(snap.val()||{}).filter(([,u])=>{
   const isSuper = (u.email||"").toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
   const isSelf  = (u.email||"").toLowerCase() === (currentUser.email||"").toLowerCase()
-  // El super admin solo se ve a sí mismo
-  return !isSuper || isSelf
+  const passesSuper=!isSuper || isSelf
+  const passesArea = canAdminSeeArea(u.area||"")
+  return passesSuper && passesArea
 })
     if(!items.length){container.innerHTML="Sin usuarios cargados"; return}
 
-    container.innerHTML=items.map(([k,u])=>{
+    const totalPages=Math.max(1, Math.ceil(items.length/USERS_PER_PAGE))
+    if(usersPage>totalPages) usersPage=totalPages
+    if(usersPage<1) usersPage=1
+
+    const start=(usersPage-1)*USERS_PER_PAGE
+    const pageItems=items.slice(start, start+USERS_PER_PAGE)
+
+    const cards=pageItems.map(([k,u])=>{
       const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
       return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Área: ${htmlEscape(u.area||"Sin área")} · Clave: Oculta</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="ghost" onclick="changeUserArea('${k}')">Cambiar área</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
     }).join("")
+
+    const pager=`<div class="inline" style="justify-content:flex-end;margin-top:6px"><button class="ghost" ${usersPage<=1?"disabled":""} onclick="usersPage--;loadUsersAdmin()">Anterior</button><span class="small">Página ${usersPage} de ${totalPages}</span><button class="ghost" ${usersPage>=totalPages?"disabled":""} onclick="usersPage++;loadUsersAdmin()">Siguiente</button></div>`
+
+    container.innerHTML=cards + pager
   })
 }
 
 async function changeUserArea(key){
   const snap=await db.ref("users_by_email").child(key).once("value")
   const user=snap.val()||{}
-  const next=prompt(`Nueva área para ${user.email||"usuario"} (vacío para quitar):`, (user.area||""))
-  if(next===null) return
-  await db.ref("users_by_email").child(key).update({area:next.trim().toUpperCase(),updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  editingUserKeyForArea=key
+
+  const label=document.getElementById("userAreaModalLabel")
+  if(label) label.innerText=`Usuario: ${user.email||"-"}`
+
+  await loadAreaOptions(user.area||"", "")
+  fillAreaSelect("userAreaModalSelect", await getAreaNames(), user.area||"")
+
+  document.getElementById("userAreaModal").classList.remove("hidden")
+}
+
+function closeUserAreaModal(){
+  editingUserKeyForArea=null
+  document.getElementById("userAreaModal").classList.add("hidden")
+}
+
+async function saveUserAreaFromModal(){
+  if(!editingUserKeyForArea) return
+  const next=normalizeAreaName(document.getElementById("userAreaModalSelect")?.value||"")
+  await db.ref("users_by_email").child(editingUserKeyForArea).update({area:next,updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  closeUserAreaModal()
   alert("Área actualizada")
 }
 
@@ -919,7 +1087,7 @@ function loadOperatorsLastAccess(){
   if(!container) return
 
   db.ref("users_by_email").on("value", snap=>{
-    const users=Object.values(snap.val()||{}).filter(u=>u.role==="operator")
+    const users=Object.values(snap.val()||{}).filter(u=>u.role==="operator" && canAdminSeeArea(u.area||""))
     if(!users.length){container.innerHTML="<p class='small'>No hay operadores registrados.</p>"; return}
     container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:500px"><thead><tr><th>Email</th><th>Último acceso</th></tr></thead><tbody>${users.map(u=>`<tr><td>${htmlEscape(u.email||"-")}</td><td>${u.lastAccessAt?new Date(u.lastAccessAt).toLocaleString():"Sin acceso aún"}</td></tr>`).join("")}</tbody></table></div>`
   })
