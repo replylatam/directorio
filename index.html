@@ -386,6 +386,14 @@ function renderApp() {
       </div>
     </div>
   `;
+
+  loadClients();
+  if (role === "admin") {
+    loadUsersAdmin();
+    loadOperatorsLastAccess();
+    loadOperatorAlerts();
+    loadDashboard();
+  }
 }
 
   loadClients()
@@ -1046,4 +1054,5 @@ init()
 </script>
 </body>
 </html>
+
 
