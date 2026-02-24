@@ -97,6 +97,31 @@ textarea{min-height:86px;resize:vertical}
     </div>
 
     <div><label>Notas</label><textarea id="cNotes"></textarea></div>
+    <div class="row">
+  <div><label>Cliente</label><input id="cClientName"></div>
+  <div><label>Contraseña</label><input id="cPassword"></div>
+</div>
+
+<div class="row">
+  <div><label>País</label><input id="cCountry"></div>
+  <div><label>Email</label><input id="cEmail"></div>
+</div>
+
+<div><label>Notas</label><textarea id="cNotes"></textarea></div>
+
+<!-- Aquí agregas el nuevo campo "Área" -->
+<div class="row">
+  <div>
+    <label>Área</label>
+    <select id="clientArea">
+      if (currentRole === "admin") {
+  document.getElementById("clientArea").style.display = "block"; // Muestra el campo "Área" si es admin
+} else {
+  document.getElementById("clientArea").style.display = "none"; // Oculta el campo "Área" si no es admin
+}      <!-- Las áreas se cargarán dinámicamente aquí -->
+    </select>
+  </div>
+</div>
 
     <div class="inline" style="justify-content:space-between;margin:8px 0 6px">
       <div class="inline">
@@ -396,6 +421,9 @@ function renderApp(){
   `
 
   loadClients()
+  // Filtrar clientes según área del usuario
+const userArea = currentUser.area || ""; // Asumiendo que el área está guardada en el usuario
+if (userArea && !c.clientName.toLowerCase().includes(userArea.toLowerCase())) return;
   if(role==="admin"){
     loadUsersAdmin()
     loadOperatorsLastAccess()
@@ -543,71 +571,81 @@ function toggleNoQr(isChecked){
     }
   }
 }
+function loadClients() {
+  const container = document.getElementById("clientsContainer");
+  if (!container) return;
 
-function loadClients(){
-  const container=document.getElementById("clientsContainer")
-  if(!container) return
+  db.ref("clients").off();
+  db.ref("clients").on("value", snap => {
+    const data = snap.val();
+    if (!data) {
+      container.innerHTML = "<p>Sin clientes</p>";
+      return;
+    }
 
-  db.ref("clients").off()
-  db.ref("clients").on("value", snap=>{
-    const data=snap.val()
-    if(!data){container.innerHTML="<p>Sin clientes</p>";return}
+    const rows = [];
+    Object.entries(data).forEach(([id, c]) => {
+      // Filtrar clientes según área del usuario
+      const userArea = currentUser.area || ""; // Asumiendo que el área está guardada en el usuario
+      if (userArea && !c.clientName.toLowerCase().includes(userArea.toLowerCase())) return;
 
-    const rows=[]
-    Object.entries(data).forEach(([id,c])=>{
-      const visibleForRole=currentRole==="admin"?true:(c.active!==false)
-      if(!visibleForRole) return
+      rows.push({
+        id,
+        c,
+        clientName: c.clientName,
+        country: c.country,
+        notes: c.notes
+      });
+    });
 
-      const clientName=c.clientName||c.name||""
-      const country=c.country||""
-      const notes=c.notes||""
-      const haystack=`${clientName} ${country} ${c.email||""} ${notes}`.toLowerCase()
-      if(clientSearchTerm && !haystack.includes(clientSearchTerm)) return
-
-      rows.push({id,c,clientName,country,notes})
-    })
-
-    clientsCache=rows.reduce((acc,row)=>{acc[row.id]=row.c; return acc},{})
-
-    Object.keys(revealedTotpByClient).forEach((clientId)=>{
-      if(!isOperatorTotpVisible(clientId)){
-        delete revealedTotpByClient[clientId]
-        clearTotpInterval(clientId)
-      }
-    })
-
-    if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
-
-    container.innerHTML=`
+    // Mostrar clientes
+    container.innerHTML = `
       <div class="tableWrap">
         <table class="table">
-          <thead><tr><th>Cliente</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Contraseña</th>
+              <th>País</th>
+              <th>Notas</th>
+              <th>Email</th>
+              <th>Fecha carga</th>
+              <th>Estado</th>
+              <th>TOTP</th>
+              <th>Vence</th>
+              ${currentRole === "admin" ? "<th>Activo</th><th>Acciones</th>" : "<th>Acciones</th>"}
+            </tr>
+          </thead>
           <tbody>
-            ${rows.map(({id,c,clientName,country,notes})=>{
-              const created=c.createdAt?new Date(c.createdAt).toLocaleString():"Fecha desconocida"
-              return `<tr>
-                <td><strong>${htmlEscape(clientName||"-")}</strong></td>
-                <td>${htmlEscape(c.password||"-")}</td>
-                <td>${htmlEscape(country||"-")}</td>
-                <td>${htmlEscape(notes||"-")}</td>
-                <td>${htmlEscape(c.email||"-")}</td>
-                <td class="small">${htmlEscape(created)}</td>
-                <td>${c.active?'<span class="badge ok">Activo</span>':'<span class="badge off">Inactivo</span>'}</td>
-                <td class="mono" id="code-${id}">${isOperatorTotpVisible(id)?"------":"Presioná Obtener"}</td>
-                <td class="small"><span id="timer-${id}">${isOperatorTotpVisible(id)?"30":"-"}</span>${isOperatorTotpVisible(id)?"s":""}</td>
-                ${currentRole==="admin"?`<td><label class="switch"><input type="checkbox" ${c.active?"checked":""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
-                <td><div class="inline"><button class="ghost" onclick="openClientModal('edit','${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
-                `<td><div class="inline"><button class="ghost" ${isOperatorTotpVisible(id)?"disabled":""} onclick="revealTotp('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">${isOperatorTotpVisible(id)?"Obtenido":"Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></div></td>`}
-              </tr>`
-            }).join("")}
+            ${rows
+              .map(
+                ({ id, c, clientName, country, notes }) => {
+                  const created = c.createdAt ? new Date(c.createdAt).toLocaleString() : "Fecha desconocida";
+                  return `<tr>
+                    <td><strong>${htmlEscape(clientName || "-")}</strong></td>
+                    <td>${htmlEscape(c.password || "-")}</td>
+                    <td>${htmlEscape(country || "-")}</td>
+                    <td>${htmlEscape(notes || "-")}</td>
+                    <td>${htmlEscape(c.email || "-")}</td>
+                    <td class="small">${htmlEscape(created)}</td>
+                    <td>${c.active ? '<span class="badge ok">Activo</span>' : '<span class="badge off">Inactivo</span>'}</td>
+                    <td class="mono" id="code-${id}">${isOperatorTotpVisible(id) ? "------" : "Presioná Obtener"}</td>
+                    <td class="small"><span id="timer-${id}">${isOperatorTotpVisible(id) ? "30" : "-"}</span>${isOperatorTotpVisible(id) ? "s" : ""}</td>
+                    ${currentRole === "admin"
+                      ? `<td><label class="switch"><input type="checkbox" ${c.active ? "checked" : ""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
+                        <td><div class="inline"><button class="ghost" onclick="openClientModal('edit','${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName || "").replace(/'/g, "\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName || "").replace(/'/g, "\\'")}')">🚨</button></div></td>`
+                      : `<td><div class="inline"><button class="ghost" ${isOperatorTotpVisible(id) ? "disabled" : ""} onclick="revealTotp('${id}','${String(clientName || "").replace(/'/g, "\\'")}')">${isOperatorTotpVisible(id) ? "Obtenido" : "Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName || "").replace(/'/g, "\\'")}')">🚨 Alertar</button></div></td>`
+                    }
+                  </tr>`;
+                }
+              )
+              .join("")}
           </tbody>
         </table>
-      </div>`
-
-    rows.forEach(({id,c})=>{ if(isOperatorTotpVisible(id)) attachTotpLive(id,c) })
-  })
+      </div>`;
+  });
 }
-
+  
 function attachTotpLive(id,c){
   clearTotpInterval(id)
 
@@ -669,7 +707,7 @@ function resetClientModalFields(){
   toggleNoQr(false)
 }
 
-function openClientModal(mode="create", clientId=null){
+function openClientModal(mode="create", clientId=null) {
   modalMode = mode
   editingClientId = clientId
 
@@ -680,9 +718,34 @@ function openClientModal(mode="create", clientId=null){
   if(titleEl) titleEl.innerText = (mode==="edit") ? "Editar cliente" : "Nuevo cliente"
   if(saveBtn) saveBtn.innerText = (mode==="edit") ? "Guardar cambios" : "Guardar cliente"
 
+  // Mostrar u ocultar el campo de "Área" según el rol
+  if (currentRole === "admin") {
+    document.getElementById("clientArea").style.display = "block"; // Muestra el campo "Área" si es admin
+  } else {
+    document.getElementById("clientArea").style.display = "none"; // Oculta el campo "Área" si no es admin
+  }
+
   document.getElementById("clientModal").classList.remove("hidden")
 
-  loadAreas(); // Cargar las áreas en el select del modal
+  // Llamamos a la función para cargar las áreas en el selector
+  async function loadAreasInClientModal() {
+    const areaSelect = document.getElementById("clientArea");
+    const areaSnap = await db.ref("areas").once("value");
+    const areas = areaSnap.val() || {};
+
+    areaSelect.innerHTML = ""; // Limpiar el select
+
+    // Cargar las áreas
+    Object.entries(areas).forEach(([areaId, areaData]) => {
+      const option = document.createElement("option");
+      option.value = areaId;
+      option.textContent = areaData.name;
+      areaSelect.appendChild(option);
+    });
+  }
+
+  // Llama esta función cuando se abre el modal para un cliente
+  loadAreasInClientModal();
 
   if(mode==="edit" && clientId){
     // cargar datos existentes
@@ -744,6 +807,7 @@ async function saveClient(){
   const email=document.getElementById("cEmail").value.trim().toLowerCase()
   const notes=document.getElementById("cNotes").value.trim()
   const noQr=document.getElementById("cNoQr").checked
+  const clientArea = document.getElementById("clientArea").value; // Obtener el área seleccionada
 
   if(!clientName||!password||!country||!email) return alert("Completá Cliente, Contraseña, País y Email")
 
@@ -763,14 +827,15 @@ async function saveClient(){
   }
 
   const baseData = {
-    clientName,
-    name:clientName,
-    password,
-    country,
-    email,
-    notes,
-    secret: finalSecret
-  }
+  clientName,
+  name: clientName,
+  password,
+  country,
+  email,
+  notes,
+  area: clientArea,  // Añadir área al cliente
+  secret: finalSecret
+}
 
   if(modalMode==="edit" && editingClientId){
     await db.ref("clients").child(editingClientId).update({
@@ -926,10 +991,40 @@ function loadUsersAdmin(){
     if(!items.length){container.innerHTML="Sin usuarios cargados"; return}
 
     container.innerHTML=items.map(([k,u])=>{
-      const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
-      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Clave: Oculta</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
-    }).join("")
-  })
+  const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
+  return `
+    <div class="card" style="padding:10px;margin:6px 0">
+      <div class="inline" style="justify-content:space-between">
+        <div>
+          <strong>${htmlEscape(u.email||"-")}</strong>
+          <br>
+          <span class="small">Rol: ${htmlEscape(u.role||"-")} · Clave: Oculta</span>
+        </div>
+        <div class="inline">
+          <button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button>
+          <button class="ghost" onclick="changeUserArea('${k}')">Cambiar área</button>
+          <button class="danger" ${isSelf ? "disabled" : ""} onclick="deleteUserAccess('${k}','${u.email || ''}')">Eliminar</button>
+        </div>
+      </div>
+    </div>`
+}).join("")
+
+  async function changeUserArea(userId) {
+  const newArea = prompt("Ingrese el nombre de la nueva área:");
+  if (!newArea) return;
+
+  // Buscar área en la base de datos
+  const areaSnap = await db.ref("areas").orderByChild("name").equalTo(newArea).once("value");
+  const area = areaSnap.val();
+  if (!area) return alert("Área no encontrada.");
+
+  // Actualizar el área del usuario
+  await db.ref("users_by_email").child(userId).update({
+    area: newArea
+  });
+
+  alert("Área del usuario actualizada correctamente.");
+  loadUsersAdmin(); // Actualizar la lista de usuarios
 }
 
 async function changeUserPassword(key){
@@ -1075,3 +1170,4 @@ init()
 </script>
 </body>
 </html>
+
