@@ -1,363 +1,1090 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Directorio de Clientes | Admin</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<meta charset="UTF-8">
+<title>Directorio de clientes - Reply Latam</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <style>
-        /* ---------------------------------------------------- */
-        /* --- 2. CSS (Estilos) --- */
-        /* ---------------------------------------------------- */
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #e9ecef;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-        }
+<style>
+:root{--bg-1:#030712;--bg-2:#0b1220;--surface:rgba(15,23,42,.58);--stroke:rgba(148,163,184,.24);--text:#e2e8f0;--muted:#94a3b8;--accent:#7c3aed;--accent-2:#06b6d4;--danger:#dc2626;--ok:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 10% -10%,rgba(124,58,237,.3),transparent 55%),radial-gradient(900px 500px at 100% -20%,rgba(6,182,212,.25),transparent 60%),linear-gradient(180deg,var(--bg-2),var(--bg-1));min-height:100vh;padding:clamp(12px,2.4vw,26px)}
+.container{max-width:1280px;margin:auto}
+.card{background:var(--surface);backdrop-filter:blur(14px);border:1px solid var(--stroke);border-radius:16px;padding:clamp(12px,1.6vw,16px);margin-bottom:12px;box-shadow:0 10px 40px rgba(0,0,0,.28);animation:fadeIn .35s ease both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+button,.btn{border:none;color:#fff;padding:10px 14px;font-size:14px;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,var(--accent),#4338ca);transition:transform .18s ease, box-shadow .2s ease, opacity .2s ease;box-shadow:0 6px 18px rgba(124,58,237,.35)}
+button:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(124,58,237,.35)}
+button.secondary{background:#1e293b;box-shadow:none}
+button.danger{background:linear-gradient(135deg,#ef4444,var(--danger));box-shadow:0 6px 16px rgba(220,38,38,.4)}
+button.ghost{background:rgba(30,41,59,.4);border:1px solid rgba(148,163,184,.25);box-shadow:none}
+button.warn{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 6px 16px rgba(245,158,11,.4)}
+button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+label{font-size:12px;color:#cbd5e1;display:block;margin:0 0 6px}
+input,select,textarea{width:100%;padding:11px 12px;font-size:14px;border-radius:11px;border:1px solid rgba(148,163,184,.24);background:rgba(2,6,23,.6);color:var(--text);margin-bottom:10px;outline:none;transition:border-color .2s ease, box-shadow .2s ease}
+input:focus,select:focus,textarea:focus{border-color:var(--accent-2);box-shadow:0 0 0 3px rgba(6,182,212,.2)}
+textarea{min-height:86px;resize:vertical}
+.small{font-size:12px;color:var(--muted)}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 220px}
+.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:980px){.grid{grid-template-columns:1.2fr .9fr}}
+.badge{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--stroke)}
+.badge.ok{color:#86efac;border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.12)}
+.badge.off{color:#fca5a5;border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.12)}
+.badge.warn{color:#fde68a;border-color:rgba(245,158,11,.45);background:rgba(245,158,11,.12)}
+.searchWrap{position:relative}.searchWrap input{padding-left:36px;margin:0}.searchWrap:before{content:'🔎';position:absolute;left:11px;top:8px;opacity:.65}
+.switch{position:relative;display:inline-block;width:52px;height:28px}.switch input{opacity:0;width:0;height:0;margin:0}.slider{position:absolute;inset:0;cursor:pointer;background:#334155;transition:.2s;border-radius:999px}.slider:before{content:"";position:absolute;height:22px;width:22px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}.switch input:checked + .slider{background:linear-gradient(135deg,#16a34a,#22c55e)}.switch input:checked + .slider:before{transform:translateX(24px)}
+.tableWrap{
+  overflow-x:hidden;   /* NO scroll horizontal */
+  overflow-y:auto;     /* si crece mucho en vertical, ok */
+  border:1px solid var(--stroke);
+  border-radius:12px;
+}
+.table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:0; /* elimina el scroll forzado */
+  background:rgba(2,6,23,.38);
+  table-layout:fixed; /* evita que el email estire la tabla */
+}
+.table th,.table td{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top}
+  /* Permite que textos largos corten línea */
+.table th, .table td{
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.table th{font-size:12px;color:#cbd5e1;letter-spacing:.3px;text-transform:uppercase;background:rgba(15,23,42,.85);position:sticky;top:0;z-index:2}
+.table tbody tr:hover{background:rgba(30,41,59,.45)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.modalBack{position:fixed;inset:0;background:rgba(2,6,23,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:99}
+.modal{width:min(760px,100%);max-height:90vh;overflow:auto}
+.hidden{display:none!important}
+@media (max-width:768px){h2{font-size:22px}h3{font-size:18px}.row>*{flex:1 1 100%}.table{min-width:800px}}
+.kpiGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.kpiGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{padding:12px;border:1px solid var(--stroke);border-radius:14px;background:rgba(2,6,23,.35)}
+.kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.kpi .value{font-size:22px;margin-top:4px}
+.feedItem{padding:10px;border:1px solid rgba(148,163,184,.14);border-radius:12px;background:rgba(2,6,23,.25);margin-bottom:8px}
+.feedTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.feedType{font-weight:600}
+.feedMeta{font-size:12px;color:var(--muted);margin-top:4px}
 
-        /* Utilidad para ocultar elementos */
-        .hidden {
-            display: none !important;
-        }
-
-        /* --- Estilos de Controles de Formulario --- */
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #495057;
-        }
-
-        input[type="text"],
-        input[type="password"],
-        textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        
-        button {
-            padding: 10px 15px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.3s;
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        /* --- Estilos del Login --- */
-        #login-container {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            width: 300px;
-            margin-top: 50px;
-        }
-
-        #login-container h2 {
-            text-align: center;
-            color: #343a40;
-            margin-bottom: 20px;
-        }
-
-        #error-message {
-            color: #dc3545;
-            text-align: center;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
-        /* --- Estilos del Directorio (Área de Admin) --- */
-        #directorio-container {
-            width: 90%;
-            max-width: 1200px;
-            margin-top: 20px;
-        }
-
-        #directorio-container h1 {
-            color: #343a40;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        #logout-button {
-            float: right;
-            padding: 8px 15px;
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-bottom: 15px;
-        }
-
-        /* Estilos del Formulario de Creación */
-        #new-user-form-container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-        
-        #new-user-form-container h3 {
-            color: #28a745;
-            border-bottom: 2px solid #28a745;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-        }
-
-        /* Estilos de la Tabla */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #e9ecef;
-        }
-
-        th {
-            background-color: #6c757d;
-            color: white;
-            text-transform: uppercase;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-
-        tr:hover {
-            background-color: #e9f0f7;
-        }
-    </style>
+</style>
 </head>
 <body>
+<div class="container" id="app"></div>
 
-    <div id="login-container">
-        <h2>Iniciar Sesión</h2>
-        <form id="login-form">
-            <div class="form-group">
-                <label for="username">Usuario:</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password">Contraseña:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            
-            <button type="submit">Acceder</button>
-            <p id="error-message" class="hidden">Usuario o contraseña incorrectos.</p>
-        </form>
+<div id="clientModal" class="modalBack hidden">
+  <div class="card modal">
+    <div class="inline" style="justify-content:space-between;margin-bottom:8px">
+      <h3 id="modalTitle" style="margin:0">Nuevo cliente</h3>
+      <button class="secondary" onclick="closeClientModal()">Cerrar</button>
     </div>
 
-    <div id="directorio-container" class="hidden">
-        <h1>Directorio de Clientes y Usuarios</h1>
-        <button id="logout-button">Cerrar Sesión</button>
-        
-        <div id="new-user-form-container">
-            <h3>➕ Crear Nuevo Cliente/Usuario</h3>
-            <form id="new-user-form">
-                <div class="form-group">
-                    <label for="new-cliente">Nombre del Cliente (Usuario):</label>
-                    <input type="text" id="new-cliente" required>
-                </div>
-                <div class="form-group">
-                    <label for="new-password">Contraseña:</label>
-                    <input type="text" id="new-password" required>
-                </div>
-                <div class="form-group">
-                    <label for="new-pais">País:</label>
-                    <input type="text" id="new-pais" required>
-                </div>
-                <div class="form-group">
-                    <label for="new-notas">Notas:</label>
-                    <textarea id="new-notas"></textarea>
-                </div>
-                <button type="submit">Crear Usuario</button>
-            </form>
-            <p id="creation-message" class="hidden" style="color: #28a745; margin-top: 10px; font-weight: bold;">Usuario creado con éxito y añadido a la tabla.</p>
+    <div class="row">
+      <div><label>Cliente</label><input id="cClientName"></div>
+      <div><label>Contraseña</label><input id="cPassword"></div>
+    </div>
+
+    <div class="row">
+      <div><label>País</label><input id="cCountry"></div>
+      <div><label>Email</label><input id="cEmail"></div>
+    </div>
+
+    <div><label>Notas</label><textarea id="cNotes"></textarea></div>
+
+    <div class="inline" style="justify-content:space-between;margin:8px 0 6px">
+      <div class="inline">
+        <label style="margin:0">Cargar sin QR</label>
+        <label class="switch" style="margin:0">
+          <input type="checkbox" id="cNoQr" onchange="toggleNoQr(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <span class="small">Si activás esto, el cliente queda sin TOTP.</span>
+    </div>
+
+    <div>
+      <label>QR de autenticación</label>
+      <input type="file" id="qrFile" accept="image/*">
+    </div>
+
+    <div class="inline" style="justify-content:flex-end;margin-top:4px">
+      <button class="ghost" onclick="extractSecret()" id="btnExtractSecret">Extraer SECRET</button>
+      <button onclick="saveClient()" id="btnSaveClient">Guardar cliente</button>
+      <button class="secondary" onclick="closeClientModal()">Cancelar</button>
+    </div>
+
+    <div id="secretPreview" class="small" style="margin-top:8px"></div>
+  </div>
+</div>
+    
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
+  authDomain:"directorio-c2ee0.firebaseapp.com",
+  databaseURL:"https://directorio-c2ee0-default-rtdb.firebaseio.com",
+  projectId:"directorio-c2ee0"
+})
+
+
+
+const db=firebase.database()
+
+let currentUser=null
+let currentRole=null
+let currentArea=null // ACCO | CONSULTORIA | "*" (solo superadmin)
+let clientSearchTerm=""
+let extractedSecret=null
+let clientsCache={}
+let revealedTotpByClient={}
+let totpIntervalsById={}
+let modalMode="create"          // create | edit
+let editingClientId=null
+let existingSecret=null         // secret ya guardado en DB (para editar sin re-subir QR)
+
+const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
+const SUPER_ADMIN_PASSWORD="1234"
+const SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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" // webhook Slack para alertas
+const SLACK_BOT_TOKEN="" // opcional: xoxb-... para responder en hilo al resolver
+const SLACK_CHANNEL_ID="" // opcional: ID de canal (ej: C0123456789)
+const SHEET_ID="1sY-int3hJ1maLwYFyt9NLXG9OZoHUO7Ac9i9zMmWMw4" // referencia de planilla
+const AREAS = ["ACCO","CONSULTORIA"]
+
+function isSuperAdmin(){
+  return (currentUser?.email||"").toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
+}
+
+function canManageUsers(){
+  return currentRole==="admin" || currentRole==="superadmin"
+}
+
+function canCreateAdmins(){
+  return currentRole==="superadmin"
+}
+
+function base32ToUint8(base32){
+  const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+  let bits="",result=[]
+  base32=(base32||"").replace(/=+$/,"").replace(/\s+/g,"").toUpperCase()
+  for(let i=0;i<base32.length;i++){
+    const val=alphabet.indexOf(base32[i]); if(val===-1)continue
+    bits+=val.toString(2).padStart(5,"0")
+  }
+  for(let i=0;i+8<=bits.length;i+=8){result.push(parseInt(bits.substring(i,i+8),2))}
+  return new Uint8Array(result)
+}
+
+async function generateTOTP(secret){
+  const key=await crypto.subtle.importKey("raw",base32ToUint8(secret),{name:"HMAC",hash:"SHA-1"},false,["sign"])
+  const epoch=Math.floor(Date.now()/1000)
+  const time=Math.floor(epoch/30)
+  const buffer=new ArrayBuffer(8)
+  const view=new DataView(buffer)
+  view.setUint32(4,time)
+  const hmac=await crypto.subtle.sign("HMAC",key,buffer)
+  const bytes=new Uint8Array(hmac)
+  const offset=bytes[bytes.length-1]&0xf
+  const code=((bytes[offset]&0x7f)<<24)|((bytes[offset+1]&0xff)<<16)|((bytes[offset+2]&0xff)<<8)|(bytes[offset+3]&0xff)
+  return(code%1000000).toString().padStart(6,"0")
+}
+
+function emailKey(email){return (email||"").toLowerCase().replace(/[.#$/\[\]]/g,"_")}
+function htmlEscape(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
+
+const SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/AKfycbzb1jsnEXf2-pPlj4XqXv74IX18DTefCsQ6YIO9AmulRh8_w2-oiX_62ZleSJ587ABP/exec";
+const SHEETS_TOKEN=""; // si en Apps Script pusiste SHARED_TOKEN, pegalo acá
+
+async function logActivity(eventType, details={}){
+  const payload={
+    eventType,
+    email:currentUser?.email||"sin-usuario",
+    role:currentRole||"sin-rol",
+    timestampIso:new Date().toISOString(),
+    timestampLocal:new Date().toLocaleString(),
+    ...details
+  };
+
+  if(!SHEETS_WEBHOOK_URL){
+    console.warn("SHEETS_WEBHOOK_URL no configurado", payload);
+    return;
+  }
+
+  // POST principal
+  try{
+    await fetch(`${SHEETS_WEBHOOK_URL}?token=${encodeURIComponent(SHEETS_TOKEN)}`,{
+      method:"POST",
+      mode:"no-cors",
+      body:JSON.stringify(payload)
+    });
+    return;
+  }catch(err){
+    console.warn("Falló POST hacia Sheets, fallback GET", err);
+  }
+
+  // Fallback GET
+  try{
+    const q=encodeURIComponent(JSON.stringify(payload));
+    await fetch(`${SHEETS_WEBHOOK_URL}?token=${encodeURIComponent(SHEETS_TOKEN)}&payload=${q}`,{
+      method:"GET",
+      mode:"no-cors"
+    });
+  }catch(err2){
+    console.warn("No se pudo enviar log a Sheets", err2);
+  }
+}
+
+async function migrateActivityLogsToSheets(){
+  const snap = await db.ref("activity_logs").once("value");
+  const data = snap.val() || {};
+  const entries = Object.entries(data);
+
+  for (const [id, payload] of entries){
+    try{
+      await fetch(SHEETS_WEBHOOK_URL, { method:"POST", mode:"no-cors", body: JSON.stringify({ ...payload, firebaseId:id }) });
+    }catch(_){}
+  }
+
+  alert(`Migración terminada. Enviados: ${entries.length}`);
+}
+
+
+async function ensureSuperAdmin(){
+  const key=emailKey(SUPER_ADMIN_EMAIL)
+  const ref=db.ref("users_by_email").child(key)
+  const data={
+  email:SUPER_ADMIN_EMAIL,
+  password:SUPER_ADMIN_PASSWORD,
+  role:"superadmin",
+  area:"*",
+  active:true,
+  createdAt:new Date().toISOString(),
+  createdBy:"system"
+}
+  try{const snap=await ref.once("value"); if(!snap.exists()) await ref.set(data)}catch(_){ }
+}
+
+async function getUserFromDb(email){
+  try{const snap=await db.ref("users_by_email").child(emailKey(email)).once("value"); return snap.val()}catch(_){return null}
+}
+
+function getFallbackUser(email,password){
+  if(email===SUPER_ADMIN_EMAIL && password===SUPER_ADMIN_PASSWORD){
+    return {email:SUPER_ADMIN_EMAIL,password:SUPER_ADMIN_PASSWORD,role:"admin",active:true}
+  }
+  return null
+}
+
+function renderLogin(){
+  document.getElementById("app").innerHTML=`
+    <div class="card" style="max-width:480px;margin:40px auto">
+      <h2 style="margin-top:0">Directorio de clientes - Reply Latam</h2>
+      <p class="small">Acceso por Email + Contraseña.</p>
+      <label>Email</label><input id="loginEmail" type="email">
+      <label>Contraseña</label><input id="loginPassword" type="password">
+      <button onclick="handleLogin()" style="width:100%">Entrar</button>
+      <p class="small" style="margin-top:10px">Si es tu primera vez, pedí acceso al admin.</p>
+    </div>`
+}
+
+async function handleLogin(){
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase()
+  const password = document.getElementById("loginPassword").value
+
+  if(!email || !password) return alert("Completá email y contraseña")
+
+  const dbUser = await getUserFromDb(email)
+  const fallback = getFallbackUser(email,password)
+
+  const user = dbUser || fallback
+
+  if(!user || !user.active){
+    return alert("Usuario inexistente o inactivo")
+  }
+
+  if(user.password !== password){
+    return alert("Contraseña incorrecta")
+  }
+
+  currentUser = { email: user.email }
+  currentRole = user.role
+currentArea = user.area || (isSuperAdmin() ? "*" : "ACCO")
+
+  await db.ref("users_by_email")
+    .child(emailKey(email))
+    .update({lastAccessAt:new Date().toISOString()})
+
+   // 🔵 LOG DE INICIO DE SESIÓN
+  logActivity("login", {
+    userAgent: navigator.userAgent
+  }).catch(()=>{})
+
+  renderApp()
+}
+
+
+function logout(){currentUser=null;currentRole=null;currentArea=null;extractedSecret=null;renderLogin()}
+
+function renderApp(){
+${currentRole==="superadmin" ? `<button class="ghost" onclick="migrateAddDefaultArea()">Migrar áreas</button>` : ""}
+  const role=currentRole
+  const email=currentUser.email
+
+  document.getElementById("app").innerHTML=`
+    <div class="grid">
+      <div class="card">
+        <div class="inline" style="justify-content:space-between">
+          <div>
+            <h2 style="margin:0">Directorio de clientes - Reply Latam</h2>
+            <p class="small" style="margin:6px 0 0">
+  ${
+    role==="superadmin" ? "Panel Superadmin" :
+    role==="admin" ? `Panel Admin · ${htmlEscape(currentArea||"ACCO")}` :
+    `Panel Operador · ${htmlEscape(currentArea||"ACCO")}`
+  }
+  · ${htmlEscape(email)}
+</p>
+          </div>
+          <div class="inline">
+            ${(currentRole==="admin" || currentRole==="superadmin") ? `<button onclick="openClientModal()">+ Nuevo cliente</button>` : ""}
+            <button class="secondary" onclick="logout()">Cerrar sesión</button>
+          </div>
         </div>
 
-        <table id="clientes-table">
-            <thead>
-                <tr>
-                    <th>Cliente (Usuario)</th>
-                    <th>Contraseña 🔒</th>
-                    <th>País 🗺️</th>
-                    <th>Notas 📝</th>
-                    <th>QR 🤳</th>
-                </tr>
-            </thead>
-            <tbody>
-                </tbody>
-        </table>
+        ${role==="admin" ? `
+          <div style="margin-top:14px">
+            <h3 style="margin:0 0 10px">Resumen</h3>
+
+            <div class="kpiGrid">
+              <div class="kpi"><div class="label">Clientes</div><div class="value" id="kpiTotalClients">-</div></div>
+              <div class="kpi"><div class="label">Activos</div><div class="value" id="kpiActiveClients">-</div></div>
+              <div class="kpi"><div class="label">Inactivos</div><div class="value" id="kpiInactiveClients">-</div></div>
+              <div class="kpi"><div class="label">Alertas abiertas</div><div class="value" id="kpiOpenAlerts">-</div></div>
+              <div class="kpi"><div class="label">Operadores</div><div class="value" id="kpiOperators">-</div></div>
+              <div class="kpi"><div class="label">Último acceso</div><div class="value" style="font-size:14px;margin-top:8px" id="kpiLastAccess">-</div></div>
+            </div>
+
+            <div style="margin-top:14px">
+              <div class="inline" style="justify-content:space-between;align-items:center">
+                <h3 style="margin:0">Actividad reciente</h3>
+                <button class="ghost" onclick="loadDashboard()">Actualizar</button>
+              </div>
+              <div id="recentActivity" style="margin-top:10px"></div>
+            </div>
+          </div>
+        ` : ``}
+      </div>
+
+      ${role==="admin"?`
+      <div class="card">
+        <h3 style="margin-top:0">Gestión de usuarios</h3>
+        <div class="row">
+          <div><label>Email</label><input id="uEmail"></div>
+          <div><label>Contraseña</label><input id="uPassword" type="text"></div>
+        </div>
+        <div class="row">
+  <div>
+    <label>Rol</label>
+    <select id="uRole">
+      <option value="operator">Operador</option>
+      <option value="admin">Admin</option>
+      ${currentRole==="superadmin" ? `<option value="superadmin">Superadmin</option>` : ``}
+    </select>
+  </div>
+
+  <div>
+    <label>Área</label>
+    ${
+      currentRole==="superadmin"
+        ? `<select id="uArea">${AREAS.map(a=>`<option value="${a}">${a}</option>`).join("")}</select>`
+        : `<input id="uArea" value="${htmlEscape(currentArea||"ACCO")}" disabled>`
+    }
+  </div>
+
+  <div style="display:flex;align-items:flex-end">
+    <button onclick="saveUserAccess()">Guardar usuario</button>
+  </div>
+</div>
+        <div id="usersList" class="small"></div>
+      </div>`:"<div></div>"}
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const loginForm = document.getElementById('login-form');
-            const loginContainer = document.getElementById('login-container');
-            const directorioContainer = document.getElementById('directorio-container');
-            const errorMessage = document.getElementById('error-message');
-            const logoutButton = document.getElementById('logout-button');
-            const tablaBody = document.querySelector('#clientes-table tbody');
-            const newUserForm = document.getElementById('new-user-form');
-            const creationMessage = document.getElementById('creation-message');
+    <div class="card">
+      <div class="inline" style="justify-content:space-between;margin-bottom:10px">
+        <h3 style="margin:0">Clientes</h3>
+        <span class="small">${role==="admin"?"Vista admin":"Viendo todos los clientes activos"}</span>
+      </div>
+      <div class="searchWrap"><input oninput="updateClientSearch(this.value)"></div>
+    </div>
+
+    <div class="card" id="clientsContainer"></div>
+
+    ${role==="admin"?`
+      <div class="card"><h3 style="margin-top:0">Alertas de operadores</h3><div id="operatorAlerts"></div></div>
+      <div class="card"><h3 style="margin-top:0">Último acceso de operadores</h3><div id="operatorsLastAccess"></div></div>
+    `:""}
+  `
+
+  loadClients()
+  if(role==="admin"){
+    loadUsersAdmin()
+    loadOperatorsLastAccess()
+    loadOperatorAlerts()
+    loadDashboard()
+  }
+}
 
 
-            // 🔑 CREDENCIALES DE DEMO (¡NO USAR EN PRODUCCIÓN!)
-            const USUARIO_ADMIN = 'admin';
-            const CONTRASENA_ADMIN = '12345';
-            
-            // 📝 DATOS DEL DIRECTORIO DE EJEMPLO (Se usará como base de datos dinámica)
-            let clientes = [
-                { id: 1, cliente: "Acme Corp", password: "p1", pais: "España", notas: "Cliente principal", dataQR: "ID:1|Acme" },
-                { id: 2, cliente: "Beta Solutions", password: "p2", pais: "México", notas: "Próximo vencimiento", dataQR: "ID:2|Beta" },
-                { id: 3, cliente: "Gamma Tech", password: "p3", pais: "Argentina", notas: "En revisión", dataQR: "ID:3|Gamma" }
-            ];
+function updateClientSearch(value){clientSearchTerm=(value||"").trim().toLowerCase();loadClients()}
 
-            // Función para generar la tabla y los QRs
-            function generarDirectorio() {
-                // Limpiar cualquier contenido anterior
-                tablaBody.innerHTML = ''; 
-                let currentId = 0;
+function isOperatorTotpVisible(clientId){
+  if(currentRole==="admin") return true
+  const state=revealedTotpByClient[clientId]
+  if(!state) return false
+  return Date.now()<state.expiresAt
+}
 
-                clientes.forEach(cliente => {
-                    const fila = tablaBody.insertRow();
-                    
-                    // Columna Cliente
-                    fila.insertCell().textContent = cliente.cliente;
-                    
-                    // Columna Contraseña (siempre oculta, pero mostramos el password real para la demo)
-                    fila.insertCell().textContent = cliente.password; 
-                    
-                    // Columna País
-                    fila.insertCell().textContent = cliente.pais;
-                    
-                    // Columna Notas
-                    fila.insertCell().textContent = cliente.notas;
-                    
-                    // Columna QR
-                    const celdaQR = fila.insertCell();
-                    
-                    // Crear un div que actuará como contenedor del QR
-                    const qrId = `qr-code-${cliente.id}`;
-                    celdaQR.innerHTML = `<div id="${qrId}"></div>`;
-                    
-                    // Generar el código QR (solo si el elemento ya está en el DOM)
-                    // Usamos un pequeño delay para asegurar que el div existe
-                    setTimeout(() => {
-                        if(document.getElementById(qrId)) {
-                            new QRCode(document.getElementById(qrId), {
-                                text: cliente.dataQR,
-                                width: 64,
-                                height: 64,
-                                colorDark : "#000000",
-                                colorLight : "#ffffff",
-                                correctLevel : QRCode.CorrectLevel.H
-                            });
-                        }
-                    }, 0);
-                });
-            }
+function clearTotpInterval(clientId){
+  const refs=totpIntervalsById[clientId]
+  if(!refs) return
+  clearInterval(refs.timerInterval)
+  clearInterval(refs.codeInterval)
+  delete totpIntervalsById[clientId]
+}
 
-            // --- Lógica del Login ---
-            loginForm.addEventListener('submit', function(event) {
-                event.preventDefault(); 
-                
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
+async function migrateAddDefaultArea(){
+  // clientes sin area => ACCO
+  const cs = await db.ref("clients").once("value")
+  const clients = cs.val() || {}
+  const updatesClients = {}
+  Object.entries(clients).forEach(([id,c])=>{
+    if(!c) return
+    if(!c.area) updatesClients[`${id}/area`] = "ACCO"
+    if(!c.ownerEmail && (c.createdBy||"")) updatesClients[`${id}/ownerEmail`] = c.createdBy
+  })
+  if(Object.keys(updatesClients).length){
+    await db.ref("clients").update(updatesClients)
+  }
 
-                if (username === USUARIO_ADMIN && password === CONTRASENA_ADMIN) {
-                    // Login exitoso
-                    loginContainer.classList.add('hidden');
-                    directorioContainer.classList.remove('hidden');
-                    errorMessage.classList.add('hidden');
-                    
-                    // Cargar el directorio al iniciar sesión
-                    generarDirectorio(); 
+  // usuarios sin area => ACCO (excepto superadmin fijo)
+  const us = await db.ref("users_by_email").once("value")
+  const users = us.val() || {}
+  const updatesUsers = {}
+  Object.entries(users).forEach(([key,u])=>{
+    if(!u) return
+    const uEmail=(u.email||"").toLowerCase()
+    if(uEmail===SUPER_ADMIN_EMAIL.toLowerCase()){
+      // aseguramos superadmin
+      updatesUsers[`${key}/role`] = "superadmin"
+      updatesUsers[`${key}/area`] = "*"
+      return
+    }
+    if(!u.area) updatesUsers[`${key}/area`] = "ACCO"
+    if(!u.role) updatesUsers[`${key}/role`] = "operator"
+  })
+  if(Object.keys(updatesUsers).length){
+    await db.ref("users_by_email").update(updatesUsers)
+  }
 
-                } else {
-                    // Login fallido
-                    errorMessage.classList.remove('hidden');
-                }
-            });
+  alert("Migración terminada (area por defecto: ACCO).")
+}
 
-            // --- Lógica para Crear Nuevo Usuario ---
-            newUserForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-                
-                const newCliente = document.getElementById('new-cliente').value;
-                const newPassword = document.getElementById('new-password').value;
-                const newPais = document.getElementById('new-pais').value;
-                const newNotas = document.getElementById('new-notas').value;
+function toggleNoQr(isChecked){
+  const qrInput = document.getElementById("qrFile")
+  const btnExtract = document.getElementById("btnExtractSecret")
+  const preview = document.getElementById("secretPreview")
 
-                // Generar un nuevo ID y la data para el QR
-                const newId = clientes.length > 0 ? clientes[clientes.length - 1].id + 1 : 1;
-                const newQRData = `ID:${newId}|${newCliente}`;
+  if(isChecked){
+    if(qrInput) { qrInput.value=""; qrInput.disabled=true }
+    if(btnExtract) btnExtract.disabled=true
+    extractedSecret=null
+    if(preview) preview.innerText="Cargar sin QR activado: el cliente quedará sin TOTP."
+  }else{
+    if(qrInput) qrInput.disabled=false
+    if(btnExtract) btnExtract.disabled=false
 
-                // Crear el nuevo objeto cliente
-                const nuevoCliente = {
-                    id: newId,
-                    cliente: newCliente,
-                    password: newPassword, // ¡Peligro! No hagas esto en producción.
-                    pais: newPais,
-                    notas: newNotas,
-                    dataQR: newQRData
-                };
+    // si estoy editando y existía un secret, lo aviso
+    if(modalMode==="edit" && existingSecret){
+      if(preview) preview.innerText="Este cliente ya tiene SECRET guardado. No hace falta volver a subir QR."
+    }else{
+      if(preview && !extractedSecret) preview.innerText=""
+    }
+  }
+}
 
-                // Añadir el nuevo cliente al array
-                clientes.push(nuevoCliente);
+function loadClients(){
+  const container=document.getElementById("clientsContainer")
+  if(!container) return
 
-                // Recargar la tabla para mostrar el nuevo cliente
-                generarDirectorio();
+  db.ref("clients").off()
+  db.ref("clients").on("value", snap=>{
+    const data=snap.val()
+    if(!data){container.innerHTML="<p>Sin clientes</p>";return}
 
-                // Mostrar mensaje de éxito y limpiar formulario
-                creationMessage.classList.remove('hidden');
-                setTimeout(() => creationMessage.classList.add('hidden'), 3000);
-                newUserForm.reset();
-            });
+    const rows=[]
+    Object.entries(data).forEach(([id,c])=>{
+      // Normalizamos área para registros viejos sin area
+const clientArea = c.area || "ACCO"
 
-            // --- Lógica del Logout ---
-            logoutButton.addEventListener('click', () => {
-                directorioContainer.classList.add('hidden');
-                loginContainer.classList.remove('hidden');
-                loginForm.reset(); 
-            });
-        });
+// SUPERADMIN: ve todo
+if(currentRole==="superadmin"){
+  // nada
+}
+// ADMIN: solo su área
+else if(currentRole==="admin"){
+  if(clientArea !== currentArea) return
+}
+// OPERATOR: solo su área + solo los que cargó él + solo activos
+else{
+  if(c.active===false) return
+  if(clientArea !== currentArea) return
+  const owner = (c.ownerEmail || c.createdBy || "").toLowerCase()
+  if(owner !== (currentUser.email||"").toLowerCase()) return
+}
 
-        /*
-        ADVERTENCIAS DE SEGURIDAD:
-        1. **ALMACENAMIENTO DE DATOS**: Los datos (incluyendo contraseñas) se almacenan en una variable JavaScript (`let clientes = [...]`), por lo que se pierden cada vez que se recarga la página.
-        2. **SEGURIDAD DE CONTRASEÑAS**: Las contraseñas se gestionan en texto plano. En un sistema real, la encriptación (hashing) es OBLIGATORIA.
-        */
-    </script>
+      const clientName=c.clientName||c.name||""
+      const country=c.country||""
+      const notes=c.notes||""
+      const haystack=`${clientName} ${country} ${c.email||""} ${notes}`.toLowerCase()
+      if(clientSearchTerm && !haystack.includes(clientSearchTerm)) return
+
+      rows.push({id,c,clientName,country,notes})
+    })
+
+    clientsCache=rows.reduce((acc,row)=>{acc[row.id]=row.c; return acc},{})
+
+    Object.keys(revealedTotpByClient).forEach((clientId)=>{
+      if(!isOperatorTotpVisible(clientId)){
+        delete revealedTotpByClient[clientId]
+        clearTotpInterval(clientId)
+      }
+    })
+
+    if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
+
+    container.innerHTML=`
+      <div class="tableWrap">
+        <table class="table">
+          <thead><tr><th>Cliente</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
+          <tbody>
+            ${rows.map(({id,c,clientName,country,notes})=>{
+              const created=c.createdAt?new Date(c.createdAt).toLocaleString():"Fecha desconocida"
+              return `<tr>
+                <td><strong>${htmlEscape(clientName||"-")}</strong></td>
+                <td>${htmlEscape(c.password||"-")}</td>
+                <td>${htmlEscape(country||"-")}</td>
+                <td>${htmlEscape(notes||"-")}</td>
+                <td>${htmlEscape(c.email||"-")}</td>
+                <td class="small">${htmlEscape(created)}</td>
+                <td>${c.active?'<span class="badge ok">Activo</span>':'<span class="badge off">Inactivo</span>'}</td>
+                <td class="mono" id="code-${id}">${isOperatorTotpVisible(id)?"------":"Presioná Obtener"}</td>
+                <td class="small"><span id="timer-${id}">${isOperatorTotpVisible(id)?"30":"-"}</span>${isOperatorTotpVisible(id)?"s":""}</td>
+                ${currentRole==="admin"?`<td><label class="switch"><input type="checkbox" ${c.active?"checked":""} onchange="toggleClientSwitch('${id}', this.checked)"><span class="slider"></span></label></td>
+                <td><div class="inline"><button class="ghost" onclick="openClientModal('edit','${id}')">Editar</button><button class="danger" onclick="deleteClient('${id}', '${String(clientName||"").replace(/'/g,"\\'")}')">Borrar</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨</button></div></td>`:
+                `<td><div class="inline"><button class="ghost" ${isOperatorTotpVisible(id)?"disabled":""} onclick="revealTotp('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">${isOperatorTotpVisible(id)?"Obtenido":"Obtener"}</button><button class="warn" onclick="markClientAlert('${id}','${String(clientName||"").replace(/'/g,"\\'")}')">🚨 Alertar</button></div></td>`}
+              </tr>`
+            }).join("")}
+          </tbody>
+        </table>
+      </div>`
+
+    rows.forEach(({id,c})=>{ if(isOperatorTotpVisible(id)) attachTotpLive(id,c) })
+  })
+}
+
+function attachTotpLive(id,c){
+  clearTotpInterval(id)
+
+  const codeId=`code-${id}`; const timerId=`timer-${id}`
+  function updateTimer(){
+    const seconds=30-(Math.floor(Date.now()/1000)%30)
+    const el=document.getElementById(timerId)
+    if(el) el.innerText=seconds
+
+    if(currentRole!=="admin" && seconds===1){
+      setTimeout(()=>{
+        clearTotpInterval(id)
+        delete revealedTotpByClient[id]
+        const codeEl=document.getElementById(codeId)
+        const timerEl=document.getElementById(timerId)
+        if(codeEl) codeEl.innerText="Presioná Obtener"
+        if(timerEl) timerEl.innerText="-"
+        loadClients()
+      },1000)
+    }
+  }
+  async function updateCode(){const el=document.getElementById(codeId); if(!el) return; if(!c.secret){el.innerText="Sin secret"; return} el.innerText=await generateTOTP(c.secret)}
+  updateTimer(); updateCode()
+  const timerInterval=setInterval(updateTimer,1000)
+  const codeInterval=setInterval(()=>{if(Math.floor(Date.now()/1000)%30===0) updateCode()},1000)
+  totpIntervalsById[id]={timerInterval,codeInterval}
+}
+
+async function revealTotp(clientId, clientName){
+  const expiresAt=(Math.floor(Date.now()/30000)+1)*30000
+  revealedTotpByClient[clientId]={expiresAt}
+
+  const codeEl=document.getElementById(`code-${clientId}`)
+  const timerEl=document.getElementById(`timer-${clientId}`)
+  if(codeEl) codeEl.innerText="Generando..."
+  if(timerEl) timerEl.innerText="30"
+
+  const clientData=clientsCache[clientId]
+  if(clientData) attachTotpLive(clientId, clientData)
+  // si querés, podés NO llamar loadClients() acá y evitar re-render (más rápido todavía)
+  loadClients()
+
+  logActivity("totp_obtener",{clientId,clientName}).catch(()=>{})
+}
+
+function resetClientModalFields(){
+  document.getElementById("cClientName").value=""
+  document.getElementById("cPassword").value=""
+  document.getElementById("cCountry").value=""
+  document.getElementById("cEmail").value=""
+  document.getElementById("cNotes").value=""
+  document.getElementById("qrFile").value=""
+  document.getElementById("cNoQr").checked=false
+  document.getElementById("secretPreview").innerText=""
+  extractedSecret=null
+  existingSecret=null
+
+  // re-habilitar QR por defecto
+  toggleNoQr(false)
+}
+
+function openClientModal(mode="create", clientId=null){
+  modalMode = mode
+  editingClientId = clientId
+
+  resetClientModalFields()
+
+  const titleEl = document.getElementById("modalTitle")
+  const saveBtn = document.getElementById("btnSaveClient")
+  if(titleEl) titleEl.innerText = (mode==="edit") ? "Editar cliente" : "Nuevo cliente"
+  if(saveBtn) saveBtn.innerText = (mode==="edit") ? "Guardar cambios" : "Guardar cliente"
+
+  document.getElementById("clientModal").classList.remove("hidden")
+
+  if(mode==="edit" && clientId){
+    // cargar datos existentes
+    db.ref("clients").child(clientId).once("value").then(snap=>{
+      const c = snap.val() || {}
+      document.getElementById("cClientName").value = c.clientName || c.name || ""
+      document.getElementById("cPassword").value = c.password || ""
+      document.getElementById("cCountry").value = c.country || ""
+      document.getElementById("cEmail").value = (c.email || "").toLowerCase()
+      document.getElementById("cNotes").value = c.notes || ""
+
+      // si ya tenía secret, lo guardo para no obligar a volver a cargar QR
+      existingSecret = c.secret || null
+      extractedSecret = null
+
+      if(existingSecret){
+        document.getElementById("secretPreview").innerText = "Este cliente ya tiene SECRET guardado. No hace falta volver a subir QR."
+      }else{
+        document.getElementById("secretPreview").innerText = "Este cliente no tiene SECRET. Podés cargar QR o activar 'Cargar sin QR'."
+      }
+    })
+  }
+}
+
+function closeClientModal(){
+  document.getElementById("clientModal").classList.add("hidden")
+  modalMode="create"
+  editingClientId=null
+  extractedSecret=null
+  existingSecret=null
+}
+
+async function extractSecret(){
+  const file=document.getElementById("qrFile")?.files?.[0]
+  if(!file) return alert("Seleccioná una imagen QR")
+  const reader=new FileReader()
+  reader.onload=function(e){
+    const img=new Image()
+    img.onload=function(){
+      const canvas=document.createElement("canvas"); canvas.width=img.width; canvas.height=img.height
+      const ctx=canvas.getContext("2d"); ctx.drawImage(img,0,0)
+      const imageData=ctx.getImageData(0,0,canvas.width,canvas.height)
+      const qr=jsQR(imageData.data,canvas.width,canvas.height)
+      if(!qr) return alert("No se pudo leer el QR")
+      const match=qr.data.match(/secret=([A-Z0-9]+)/i)
+      if(!match) return alert("No se encontró SECRET en el QR")
+      extractedSecret=match[1]
+      document.getElementById("secretPreview").innerText="SECRET detectado: "+extractedSecret
+    }
+    img.src=e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+async function saveClient(){
+  const clientName=document.getElementById("cClientName").value.trim()
+  const password=document.getElementById("cPassword").value.trim()
+  const country=document.getElementById("cCountry").value.trim()
+  const email=document.getElementById("cEmail").value.trim().toLowerCase()
+  const notes=document.getElementById("cNotes").value.trim()
+  const noQr=document.getElementById("cNoQr").checked
+
+  if(!clientName||!password||!country||!email) return alert("Completá Cliente, Contraseña, País y Email")
+
+  // secret final:
+  // - si noQr => null (sin TOTP)
+  // - si subieron QR y extrajeron => extractedSecret
+  // - si están editando y no subieron QR => mantener existingSecret
+  let finalSecret = null
+
+  if(noQr){
+    finalSecret = null
+  }else{
+    finalSecret = extractedSecret || existingSecret || null
+    if(!finalSecret){
+      return alert("Cargá QR y extraé SECRET, o activá 'Cargar sin QR'.")
+    }
+  }
+
+  const baseData = {
+  clientName,
+  name:clientName,
+  password,
+  country,
+  email,
+  notes,
+  secret: finalSecret,
+  area: currentArea && currentArea!=="*" ? currentArea : "ACCO",
+  ownerEmail: currentUser.email
+}
+
+  if(modalMode==="edit" && editingClientId){
+    await db.ref("clients").child(editingClientId).update({
+      ...baseData,
+      updatedAt:new Date().toISOString(),
+      updatedBy:currentUser.email
+    })
+    alert("Cliente actualizado correctamente")
+  }else{
+    await db.ref("clients").push({
+      ...baseData,
+      active:true,
+      createdAt:new Date().toISOString(),
+      createdBy:currentUser.email
+    })
+    alert("Cliente creado correctamente")
+  }
+
+  closeClientModal()
+}
+
+async function toggleClientSwitch(id,checked){await db.ref("clients").child(id).update({active:checked})}
+async function deleteClient(id,name){if(!confirm(`¿Seguro que querés borrar el cliente "${name}"? Esta acción no se puede deshacer.`)) return; await db.ref("clients").child(id).remove()}
+
+async function postSlackMessage(text, threadTs=""){
+  if(SLACK_BOT_TOKEN && SLACK_CHANNEL_ID){
+    try{
+      const payload={channel:SLACK_CHANNEL_ID,text}
+      if(threadTs) payload.thread_ts=threadTs
+
+      const res=await fetch("https://slack.com/api/chat.postMessage",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${SLACK_BOT_TOKEN}`},
+        body:JSON.stringify(payload)
+      })
+
+      const data=await res.json()
+      if(data.ok) return {ok:true,ts:data.ts}
+      console.warn("Slack API devolvió error:", data)
+      return {ok:false,error:data.error||"slack_api_error"}
+    }catch(err){
+      console.warn("No se pudo notificar a Slack por API:", err)
+      return {ok:false,error:String(err)}
+    }
+  }
+
+  if(SLACK_WEBHOOK_URL){
+    try{
+      await fetch(SLACK_WEBHOOK_URL,{method:"POST",mode:"no-cors",body:JSON.stringify({text})})
+      return {ok:true,ts:null}
+    }catch(err){
+      console.warn("No se pudo notificar a Slack por webhook:", err)
+      return {ok:false,error:String(err)}
+    }
+  }
+
+  return {ok:false,error:"no_slack_config"}
+}
+
+async function markClientAlert(clientId, clientName){
+  const msg=prompt(`Describe el problema para ${clientName}:`, "Dato incorrecto")
+  if(msg===null) return
+
+  const alertData={
+    clientId,
+    clientName,
+    message:(msg||"Sin detalle").trim(),
+    reportedBy:currentUser?.email||"desconocido",
+    status:"open",
+    createdAt:new Date().toISOString()
+  }
+
+  const newAlertRef=db.ref("client_alerts").push()
+  await newAlertRef.set(alertData)
+  alert("Alerta enviada")
+
+  const openText=`🚨 *Alerta de cliente*\nCliente: ${alertData.clientName}\nReportado por: ${alertData.reportedBy}\nDetalle: ${alertData.message}`
+  const openSlackResult=await postSlackMessage(openText)
+
+  if(openSlackResult.ok && openSlackResult.ts){
+    await newAlertRef.update({slackThreadTs:openSlackResult.ts,slackChannelId:SLACK_CHANNEL_ID||null})
+  }
+
+  if(!openSlackResult.ok){
+    alert("La alerta se guardó, pero Slack no pudo enviarse desde el navegador. Si persiste, hay que hacerlo vía backend.")
+  }
+}
+
+function loadOperatorAlerts(){
+  const container=document.getElementById("operatorAlerts")
+  if(!container) return
+
+  db.ref("client_alerts").off()
+  db.ref("client_alerts").on("value", snap=>{
+    const items=Object.entries(snap.val()||{}).filter(([,a])=>a.status!=='resolved').sort((a,b)=>new Date(b[1].createdAt||0)-new Date(a[1].createdAt||0))
+    if(!items.length){container.innerHTML="<p class='small'>Sin alertas abiertas.</p>"; return}
+
+    container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:760px"><thead><tr><th>Cliente</th><th>Detalle</th><th>Reportado por</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+      ${items.map(([id,a])=>`<tr><td>${htmlEscape(a.clientName||"-")}</td><td>${htmlEscape(a.message||"-")}</td><td>${htmlEscape(a.reportedBy||"-")}</td><td>${a.createdAt?new Date(a.createdAt).toLocaleString():"-"}</td><td><span class="badge warn">Abierta</span></td><td><button class="ghost" onclick="resolveAlert('${id}')">Marcar resuelta</button></td></tr>`).join("")}
+    </tbody></table></div>`
+  })
+}
+
+async function resolveAlert(id){
+  const alertRef=db.ref("client_alerts").child(id)
+  const snap=await alertRef.once("value")
+  const alertData=snap.val()||{}
+  const resolvedAt=new Date().toISOString()
+
+  await alertRef.update({status:"resolved",resolvedAt,resolvedBy:currentUser.email})
+
+  const resolvedText=`✅ *Problema resuelto*\nCliente: ${alertData.clientName||"-"}\nAlerta original de: ${alertData.reportedBy||"desconocido"}\nResuelto por: ${currentUser.email}`
+  const resolvedSlackResult=await postSlackMessage(resolvedText, alertData.slackThreadTs||"")
+
+  if(!resolvedSlackResult.ok){
+    console.warn("No se pudo avisar resolución en Slack:", resolvedSlackResult.error)
+  }
+}
+
+async function saveUserAccess(){
+  if(!canManageUsers()) return alert("No tenés permisos para crear usuarios")
+
+  const email=document.getElementById("uEmail").value.trim().toLowerCase()
+  const password=document.getElementById("uPassword").value.trim()
+  const role=document.getElementById("uRole").value
+
+  let areaInput = document.getElementById("uArea")
+  let area = (areaInput && !areaInput.disabled) ? String(areaInput.value||"").trim() : (currentArea||"ACCO")
+
+  if(!email||!password) return alert("Completá email y contraseña")
+  if(role==="admin" || role==="operator"){
+    if(!AREAS.includes(area)) return alert("Área inválida")
+  }
+
+  // reglas:
+  // - superadmin puede crear admin/operator de cualquier área
+  // - admin solo puede crear users de SU área (y no puede crear superadmin)
+  if(currentRole==="admin"){
+    area = currentArea || "ACCO"
+    if(role==="superadmin") return alert("No podés crear superadmin")
+  }
+
+  await db.ref("users_by_email").child(emailKey(email)).set({
+    email,
+    password,
+    role,
+    area: role==="superadmin" ? "*" : area,
+    active:true,
+    createdAt:new Date().toISOString(),
+    createdBy:currentUser.email
+  })
+
+  alert("Usuario creado correctamente")
+}
+
+function loadUsersAdmin(){
+  const container=document.getElementById("usersList")
+  if(!container) return
+
+  db.ref("users_by_email").off()
+  db.ref("users_by_email").on("value", snap=>{
+  const items=Object.entries(snap.val()||{}).filter(([,u])=>{
+  const uEmail = (u.email||"").toLowerCase()
+  const isSuperEmail = uEmail === SUPER_ADMIN_EMAIL.toLowerCase()
+  const isSelf = uEmail === (currentUser.email||"").toLowerCase()
+
+  // superadmin ve todos, pero el superadmin "fijo" solo se muestra a sí mismo
+  if(currentRole==="superadmin"){
+    return !isSuperEmail || isSelf
+  }
+
+  // admin normal: solo ve usuarios de su área (y nunca ve al superadmin fijo salvo que sea él)
+  const uArea = u.area || "ACCO"
+  if(isSuperEmail) return false
+  return uArea === (currentArea || "ACCO")
+})
+    if(!items.length){container.innerHTML="Sin usuarios cargados"; return}
+
+    container.innerHTML=items.map(([k,u])=>{
+      const isSelf=u.email?.toLowerCase()===currentUser.email?.toLowerCase()
+      return `<div class="card" style="padding:10px;margin:6px 0"><div class="inline" style="justify-content:space-between"><div><strong>${htmlEscape(u.email||"-")}</strong><br><span class="small">Rol: ${htmlEscape(u.role||"-")} · Área: ${htmlEscape(u.area||"ACCO")} · Clave: Oculta</span></div><div class="inline"><button class="ghost" onclick="changeUserPassword('${k}')">Cambiar clave</button><button class="danger" ${isSelf?"disabled":""} onclick="deleteUserAccess('${k}','${u.email||''}')">Eliminar</button></div></div></div>`
+    }).join("")
+  })
+}
+
+async function changeUserPassword(key){
+  const email=(await db.ref("users_by_email").child(key).once("value")).val()?.email||"usuario"
+  const next=prompt(`Nueva contraseña para ${email}:`,"")
+  if(next===null) return
+  if(!next.trim()) return alert("La contraseña no puede quedar vacía")
+  await db.ref("users_by_email").child(key).update({password:next.trim(),updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  alert("Contraseña actualizada")
+}
+
+async function deleteUserAccess(key,email){if(!confirm(`¿Eliminar acceso para ${email}?`)) return; await db.ref("users_by_email").child(key).remove()}
+
+function loadOperatorsLastAccess(){
+  const container=document.getElementById("operatorsLastAccess")
+  if(!container) return
+
+  db.ref("users_by_email").on("value", snap=>{
+    const users=Object.values(snap.val()||{}).filter(u=>u.role==="operator")
+    if(!users.length){container.innerHTML="<p class='small'>No hay operadores registrados.</p>"; return}
+    container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:500px"><thead><tr><th>Email</th><th>Último acceso</th></tr></thead><tbody>${users.map(u=>`<tr><td>${htmlEscape(u.email||"-")}</td><td>${u.lastAccessAt?new Date(u.lastAccessAt).toLocaleString():"Sin acceso aún"}</td></tr>`).join("")}</tbody></table></div>`
+  })
+}
+
+function formatWhen(iso){
+  if(!iso) return ""
+  try{
+    const d=new Date(iso)
+    return d.toLocaleString()
+  }catch(_){ return iso }
+}
+
+function jsonp(url){
+  return new Promise((resolve,reject)=>{
+    const cb="cb_"+Math.random().toString(36).slice(2)
+    const s=document.createElement("script")
+    const timeout=setTimeout(()=>{
+      cleanup()
+      reject(new Error("JSONP timeout"))
+    },8000)
+
+    function cleanup(){
+      clearTimeout(timeout)
+      delete window[cb]
+      if(s.parentNode) s.parentNode.removeChild(s)
+    }
+
+    window[cb]=(data)=>{ cleanup(); resolve(data) }
+
+    s.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cb
+    s.onerror=()=>{ cleanup(); reject(new Error("JSONP error")) }
+    document.body.appendChild(s)
+  })
+}
+
+async function loadDashboard(){
+  if(currentRole!=="admin") return
+
+  // KPIs: clientes
+  try{
+    const clientsSnap = await db.ref("clients").once("value")
+    const clients = clientsSnap.val() || {}
+    const total = Object.keys(clients).length
+    let active=0, inactive=0
+    Object.values(clients).forEach(c=>{
+      if(c && c.active===false) inactive++
+      else active++
+    })
+    const el = document.getElementById("kpiTotalClients")
+if(el) el.innerText = total
+    const elA = document.getElementById("kpiActiveClients")
+if(elA) elA.innerText = active
+const elI = document.getElementById("kpiInactiveClients")
+if(elI) elI.innerText = inactive
+
+  }catch(_){}
+
+  // KPIs: alertas abiertas
+  try{
+    const alertsSnap = await db.ref("client_alerts").once("value")
+    const alerts = alertsSnap.val() || {}
+    const open = Object.values(alerts).filter(a=>a && a.status!=="resolved").length
+    const elOpen = document.getElementById("kpiOpenAlerts")
+if(elOpen) elOpen.innerText = open
+  }catch(_){}
+
+  // KPIs: operadores + último acceso
+try{
+  const usersSnap = await db.ref("users_by_email").once("value")
+  const users = Object.values(usersSnap.val() || {})
+  const ops = users.filter(u=>u && u.role==="operator")
+
+  const elOps = document.getElementById("kpiOperators")
+  if(elOps) elOps.innerText = ops.length
+
+  const last = ops
+    .map(u=>u.lastAccessAt ? new Date(u.lastAccessAt).getTime() : 0)
+    .sort((a,b)=>b-a)[0] || 0
+
+  const elLast = document.getElementById("kpiLastAccess")
+  if(elLast) elLast.innerText = last ? new Date(last).toLocaleString() : "Sin accesos"
+}catch(_){}
+
+  // Actividad reciente desde Sheets (JSONP)
+  const container = document.getElementById("recentActivity")
+  if(container) container.innerHTML = `<p class="small">Cargando actividad…</p>`
+
+  try{
+    const url = `${SHEETS_WEBHOOK_URL}?action=recent&limit=10`
+    const res = await jsonp(url)
+    const items = (res && res.ok && Array.isArray(res.items)) ? res.items : []
+
+    if(!items.length){
+      container.innerHTML = `<p class="small">Sin actividad reciente.</p>`
+      return
+    }
+
+    container.innerHTML = items.map(it=>{
+      const who = it.email || "sin-usuario"
+      const when = it.timestampIso ? formatWhen(it.timestampIso) : (it.timestampLocal || "")
+      const extra = it.clientName ? ` · ${htmlEscape(it.clientName)}` : ""
+      return `
+        <div class="feedItem">
+          <div class="feedTop">
+            <div>
+              <div class="feedType">${htmlEscape(it.eventType || "evento")}${extra}</div>
+              <div class="feedMeta">${htmlEscape(who)} · ${htmlEscape(when)}</div>
+            </div>
+            <span class="badge ${it.role==="admin"?"ok":"warn"}">${htmlEscape(it.role||"-")}</span>
+          </div>
+        </div>
+      `
+    }).join("")
+  }catch(err){
+    console.warn("No se pudo leer actividad reciente:", err)
+    if(container) container.innerHTML = `<p class="small">No se pudo cargar la actividad reciente.</p>`
+  }
+}
+ 
+  
+async function init(){renderLogin(); await ensureSuperAdmin()}
+init()
+</script>
 </body>
 </html>
