@@ -283,18 +283,6 @@ function getFallbackUser(email,password){
   return null
 }
 
-function renderLogin(){
-  document.getElementById("app").innerHTML=`
-    <div class="card" style="max-width:480px;margin:40px auto">
-      <h2 style="margin-top:0">Directorio de clientes - Reply Latam</h2>
-      <p class="small">Acceso por Email + Contraseña.</p>
-      <label>Email</label><input id="loginEmail" type="email">
-      <label>Contraseña</label><input id="loginPassword" type="password">
-      <button onclick="handleLogin()" style="width:100%">Entrar</button>
-      <p class="small" style="margin-top:10px">Si es tu primera vez, pedí acceso al admin.</p>
-    </div>`
-}
-
 async function handleLogin(){
   const email = document.getElementById("loginEmail").value.trim().toLowerCase()
   const password = document.getElementById("loginPassword").value
@@ -1171,11 +1159,29 @@ try{
 }
  
   
-async function init(){renderLogin(); await ensureSuperAdmin()}
-init()
+async function init(){
+  console.log("Iniciando la aplicación...");
+  renderLogin(); 
+  await ensureSuperAdmin();  // Asegurémonos que el super admin esté configurado.
+}
+init();
+    
+function renderLogin(){
+  console.log("Renderizando pantalla de login...");
+  document.getElementById("app").innerHTML=`
+    <div class="card" style="max-width:480px;margin:40px auto">
+      <h2 style="margin-top:0">Directorio de clientes - Reply Latam</h2>
+      <p class="small">Acceso por Email + Contraseña.</p>
+      <label>Email</label><input id="loginEmail" type="email">
+      <label>Contraseña</label><input id="loginPassword" type="password">
+      <button onclick="handleLogin()" style="width:100%">Entrar</button>
+      <p class="small" style="margin-top:10px">Si es tu primera vez, pedí acceso al admin.</p>
+    </div>`
+}
 </script>
 </body>
 </html>
+
 
 
 
