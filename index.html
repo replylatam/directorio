@@ -199,7 +199,10 @@ function base32ToUint8(base32){
   let bits="",result=[]
   base32=(base32||"").replace(/=+$/,"").replace(/\s+/g,"").toUpperCase()
   for(let i=0;i<base32.length;i++){
-    const val=alphabet.indexOf(base32[i]); if(val===-1)continue
+    const val = alphabet.indexOf(base32[i])
+if(val===-1){
+  throw new Error("SECRET no es Base32 válido: " + base32)
+}
     bits+=val.toString(2).padStart(5,"0")
   }
   for(let i=0;i+8<=bits.length;i+=8){result.push(parseInt(bits.substring(i,i+8),2))}
@@ -207,17 +210,22 @@ function base32ToUint8(base32){
 }
 
 async function generateTOTP(secret){
-  const key=await crypto.subtle.importKey("raw",base32ToUint8(secret),{name:"HMAC",hash:"SHA-1"},false,["sign"])
-  const epoch=Math.floor(Date.now()/1000)
-  const time=Math.floor(epoch/30)
-  const buffer=new ArrayBuffer(8)
-  const view=new DataView(buffer)
-  view.setUint32(4,time)
-  const hmac=await crypto.subtle.sign("HMAC",key,buffer)
-  const bytes=new Uint8Array(hmac)
-  const offset=bytes[bytes.length-1]&0xf
-  const code=((bytes[offset]&0x7f)<<24)|((bytes[offset+1]&0xff)<<16)|((bytes[offset+2]&0xff)<<8)|(bytes[offset+3]&0xff)
-  return(code%1000000).toString().padStart(6,"0")
+  try{
+    const key=await crypto.subtle.importKey("raw",base32ToUint8(secret),{name:"HMAC",hash:"SHA-1"},false,["sign"])
+    const epoch=Math.floor(Date.now()/1000)
+    const time=Math.floor(epoch/30)
+    const buffer=new ArrayBuffer(8)
+    const view=new DataView(buffer)
+    view.setUint32(4,time)
+    const hmac=await crypto.subtle.sign("HMAC",key,buffer)
+    const bytes=new Uint8Array(hmac)
+    const offset=bytes[bytes.length-1]&0xf
+    const code=((bytes[offset]&0x7f)<<24)|((bytes[offset+1]&0xff)<<16)|((bytes[offset+2]&0xff)<<8)|(bytes[offset+3]&0xff)
+    return (code%1000000).toString().padStart(6,"0")
+  }catch(err){
+    console.warn("Error generando TOTP:", err)
+    return "SECRET inválido"
+  }
 }
 
 function emailKey(email){return (email||"").toLowerCase().replace(/[.#$/\[\]]/g,"_")}
@@ -809,21 +817,63 @@ function closeClientModal(){
   existingSecret=null
 }
 
+function normalizeBase32Secret(s){
+  return (s || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toUpperCase()
+    .replace(/=+$/g, ""); // opcional: sacá padding final
+}
+
+function isValidBase32(s){
+  // Base32 RFC4648: A-Z y 2-7 (sin 0,1,8,9)
+  return /^[A-Z2-7]+$/.test(s);
+}
+
 async function extractSecret(){
   const file=document.getElementById("qrFile")?.files?.[0]
   if(!file) return alert("Seleccioná una imagen QR")
+
   const reader=new FileReader()
   reader.onload=function(e){
     const img=new Image()
     img.onload=function(){
-      const canvas=document.createElement("canvas"); canvas.width=img.width; canvas.height=img.height
-      const ctx=canvas.getContext("2d"); ctx.drawImage(img,0,0)
+      const canvas=document.createElement("canvas")
+      canvas.width=img.width
+      canvas.height=img.height
+      const ctx=canvas.getContext("2d")
+      ctx.drawImage(img,0,0)
+
       const imageData=ctx.getImageData(0,0,canvas.width,canvas.height)
       const qr=jsQR(imageData.data,canvas.width,canvas.height)
       if(!qr) return alert("No se pudo leer el QR")
-      const match=qr.data.match(/secret=([A-Z0-9]+)/i)
-      if(!match) return alert("No se encontró SECRET en el QR")
-      extractedSecret=match[1]
+
+      let secret = null
+
+      try{
+        // Soporta otpauth://... aunque sea un esquema custom
+        const url = new URL(qr.data)
+        secret = url.searchParams.get("secret")
+      }catch(_){
+        // Fallback si no parsea como URL
+        const m = String(qr.data).match(/[?&]secret=([^&]+)/i)
+        secret = m ? m[1] : null
+      }
+
+      if(!secret) return alert("No se encontró SECRET en el QR")
+
+      // decode por si viene URL-encoded
+      try{ secret = decodeURIComponent(secret) }catch(_){}
+
+      secret = normalizeBase32Secret(secret)
+
+      if(!isValidBase32(secret)){
+        document.getElementById("secretPreview").innerText =
+          "SECRET inválido detectado (tiene caracteres raros): " + secret
+        return alert("El SECRET extraído no es Base32 válido. Revisá el QR / fuente.")
+      }
+
+      extractedSecret = secret
       document.getElementById("secretPreview").innerText="SECRET detectado: "+extractedSecret
     }
     img.src=e.target.result
