@@ -58,6 +58,7 @@ textarea{min-height:86px;resize:vertical}
   word-break:break-word;
 }
 .table th{font-size:12px;color:#cbd5e1;letter-spacing:.3px;text-transform:uppercase;background:rgba(15,23,42,.85);position:sticky;top:0;z-index:2}
+.table.noSticky th{position:static;top:auto;z-index:auto}
 .table tbody tr:hover{background:rgba(30,41,59,.45)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .modalBack{position:fixed;inset:0;background:rgba(2,6,23,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:99}
@@ -386,13 +387,13 @@ function renderApp(){
               <div class="kpi"><div class="label">Último acceso</div><div class="value" style="font-size:14px;margin-top:8px" id="kpiLastAccess">-</div></div>
             </div>
 
-            <div style="margin-top:14px">
+            ${!isConsultorUser() ? `<div style="margin-top:14px">
               <div class="inline" style="justify-content:space-between;align-items:center">
                 <h3 style="margin:0">Actividad reciente</h3>
                 <button class="ghost" onclick="loadDashboard()">Actualizar</button>
               </div>
               <div id="recentActivity" style="margin-top:10px"></div>
-            </div>
+            </div>` : ``}
           </div>
         ` : ``}
       </div>
@@ -400,6 +401,7 @@ function renderApp(){
       ${role==="admin"?`
       <div class="card">
         <h3 style="margin-top:0">Gestión de usuarios</h3>
+        ${isConsultorUser()?`<p class="small">No tenés permiso para crear usuarios.</p>`:`
         <div class="row">
           <div><label>Email</label><input id="uEmail"></div>
           <div><label>Contraseña</label><input id="uPassword" type="text"></div>
@@ -412,7 +414,7 @@ function renderApp(){
         <div class="inline" style="margin-top:6px">
           <input id="newAreaName" placeholder="Nueva área (ej: ACCO)">
           <button class="ghost" onclick="createArea()">Crear área</button>
-        </div>
+        </div>`}
         <div id="usersList" class="small"></div>
       </div>`:"<div></div>"}
     </div>
@@ -450,11 +452,105 @@ function renderApp(){
     loadUsersAdmin()
     loadOperatorsLastAccess()
     loadOperatorAlerts()
-    loadDashboard()
+    if(!isConsultorUser()) loadDashboard()
     updateBulkSelectionInfo()
   }
 }
 
+
+
+async function createArea(){
+  if(currentRole!=="admin") return
+  const input=document.getElementById("newAreaName")
+  let name=(input?.value||"").trim().toUpperCase()
+  if(!name) return alert("Ingresá un nombre de área")
+
+  if(isAreaScopedAdmin()){
+    const myArea=normalizeAreaName(currentUser?.area||"")
+    if(name!==myArea) return alert("Solo podés gestionar tu propia área")
+  }
+
+  const key=name.replace(/\s+/g,"_")
+  await db.ref("areas").child(key).set({name})
+  if(input) input.value=""
+  await loadAreaOptions()
+  if(currentRole==="admin") loadUsersAdmin()
+  alert("Área creada")
+}
+
+function normalizeAreaName(value){
+  return String(value||"").trim().toUpperCase()
+}
+
+async function getAreaNames(){
+  const snap=await db.ref("areas").once("value")
+  const raw=snap.val()||{}
+  const names=[]
+
+  Object.entries(raw).forEach(([key,val])=>{
+    if(typeof val==="string"){
+      const n=normalizeAreaName(val)
+      if(n) names.push(n)
+      return
+    }
+
+    if(val && typeof val==="object"){
+      const fromName=normalizeAreaName(val.name||val.area||val.label)
+      if(fromName){
+        names.push(fromName)
+      }else{
+        const fromKey=normalizeAreaName(key)
+        if(fromKey) names.push(fromKey)
+      }
+    }
+  })
+
+  const unique=[...new Set(names)].sort()
+  if(isAreaScopedAdmin()) return unique.filter((a)=>a===normalizeAreaName(currentUser?.area||""))
+  return unique
+}
+
+function fillAreaSelect(selectId, areas, selected=""){
+  const el=document.getElementById(selectId)
+  if(!el) return
+  el.innerHTML='<option value="">Sin área</option>' + areas.map(a=>`<option value="${htmlEscape(a)}">${htmlEscape(a)}</option>`).join("")
+  const normalized=normalizeAreaName(selected)
+  el.value=normalized
+  if(el.value!==normalized) el.value=""
+}
+
+async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
+  const areas=await getAreaNames()
+  fillAreaSelect("uArea", areas, selectedUserArea)
+  fillAreaSelect("cArea", areas, selectedClientArea)
+  fillAreaSelect("userAreaModalSelect", areas, selectedUserArea)
+  fillAreaSelect("bulkAreaSelect", areas, selectedClientArea)
+}
+
+function isAreaScopedAdmin(){
+  return currentRole==="admin" && normalizeAreaName(currentUser?.area||"")!==""
+}
+
+function isConsultorUser(){
+  return currentRole==="admin" && normalizeAreaName(currentUser?.area||"")==="CONSULTORIA"
+}
+
+function canAdminSeeArea(areaValue){
+  if(!isAreaScopedAdmin()) return true
+  return normalizeAreaName(areaValue)===normalizeAreaName(currentUser?.area||"")
+}
+
+function canSeeClientByArea(client){
+  if(currentRole==="admin") return canAdminSeeArea(client?.area||"")
+  const userArea=(currentUser?.area||"").trim().toUpperCase()
+  if(!userArea) return true
+
+  const clientArea=(client?.area||"").trim().toUpperCase()
+  const clientName=(client?.clientName||client?.name||"").trim().toUpperCase()
+
+  if(clientArea) return clientArea===userArea
+  return clientName.includes(userArea)
+}
 
 
 async function createArea(){
@@ -676,6 +772,14 @@ function loadClients(){
     if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
 
     container.innerHTML=`
+      ${currentRole==="admin"?`<div class="inline" style="margin-bottom:10px">
+        <button class="danger" onclick="bulkDeleteClients()">Eliminar seleccionados</button>
+        <button class="secondary" onclick="bulkSetClientsActive(false)">Inactivar seleccionados</button>
+        <button class="ghost" onclick="bulkSetClientsActive(true)">Activar seleccionados</button>
+        <select id="bulkAreaSelect" style="max-width:220px;margin:0"></select>
+        <button class="warn" onclick="bulkAssignArea()">Asignar área</button>
+      </div>
+      <p class="small" id="bulkSelectionInfo" style="margin:0 0 10px">0 clientes seleccionados</p>`:""}
       <div class="tableWrap">
         <table class="table">
           <thead><tr>${currentRole==="admin"?"<th><input type=\"checkbox\" onchange=\"toggleSelectAllClients(this.checked)\"></th>":""}<th>Cliente</th><th>Área</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
@@ -703,6 +807,7 @@ function loadClients(){
         </table>
       </div>`
 
+    if(currentRole==="admin") loadAreaOptions("", "")
     rows.forEach(({id,c})=>{ if(isOperatorTotpVisible(id)) attachTotpLive(id,c) })
     updateBulkSelectionInfo()
   })
@@ -1015,13 +1120,14 @@ function loadOperatorAlerts(){
     const items=Object.entries(snap.val()||{}).filter(([,a])=>a.status!=='resolved').sort((a,b)=>new Date(b[1].createdAt||0)-new Date(a[1].createdAt||0))
     if(!items.length){container.innerHTML="<p class='small'>Sin alertas abiertas.</p>"; return}
 
-    container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:760px"><thead><tr><th>Cliente</th><th>Detalle</th><th>Reportado por</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
-      ${items.map(([id,a])=>`<tr><td>${htmlEscape(a.clientName||"-")}</td><td>${htmlEscape(a.message||"-")}</td><td>${htmlEscape(a.reportedBy||"-")}</td><td>${a.createdAt?new Date(a.createdAt).toLocaleString():"-"}</td><td><span class="badge warn">Abierta</span></td><td><button class="ghost" onclick="resolveAlert('${id}')">Marcar resuelta</button></td></tr>`).join("")}
+    container.innerHTML=`<div class="tableWrap"><table class="table noSticky" style="min-width:760px"><thead><tr><th>Cliente</th><th>Detalle</th><th>Reportado por</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+      ${items.map(([id,a])=>`<tr><td>${htmlEscape(a.clientName||"-")}</td><td>${htmlEscape(a.message||"-")}</td><td>${htmlEscape(a.reportedBy||"-")}</td><td>${a.createdAt?new Date(a.createdAt).toLocaleString():"-"}</td><td><span class="badge warn">Abierta</span></td><td>${isConsultorUser()?'<span class="small">Sin permiso</span>':`<button class="ghost" onclick="resolveAlert('${id}')">Marcar resuelta</button>`}</td></tr>`).join("")}
     </tbody></table></div>`
   })
 }
 
 async function resolveAlert(id){
+  if(isConsultorUser()) return alert("No tenés permiso para cambiar el estado de tickets")
   const alertRef=db.ref("client_alerts").child(id)
   const snap=await alertRef.once("value")
   const alertData=snap.val()||{}
@@ -1038,6 +1144,7 @@ async function resolveAlert(id){
 }
 
 async function saveUserAccess(){
+  if(isConsultorUser()) return alert("No tenés permiso para crear usuarios")
   const email=document.getElementById("uEmail").value.trim().toLowerCase()
   const password=document.getElementById("uPassword").value.trim()
   const role=document.getElementById("uRole").value
