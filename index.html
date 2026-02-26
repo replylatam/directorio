@@ -186,6 +186,7 @@ let editingUserKeyForArea=null
 let selectedClientIds={}
 let usersPage=1
 const USERS_PER_PAGE=3
+const SESSION_STORAGE_KEY="directorio_session"
 
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
@@ -222,6 +223,49 @@ async function generateTOTP(secret){
 
 function emailKey(email){return (email||"").toLowerCase().replace(/[.#$/\[\]]/g,"_")}
 function htmlEscape(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
+
+function saveSession(){
+  try{
+    if(!currentUser?.email || !currentRole) return
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+      email: currentUser.email,
+      role: currentRole,
+      area: currentUser.area || "",
+      savedAt: new Date().toISOString()
+    }))
+  }catch(_){ }
+}
+
+function clearSession(){
+  try{ localStorage.removeItem(SESSION_STORAGE_KEY) }catch(_){ }
+}
+
+async function restoreSession(){
+  try{
+    const raw=localStorage.getItem(SESSION_STORAGE_KEY)
+    if(!raw) return false
+    const parsed=JSON.parse(raw||"{}")
+    const email=(parsed?.email||"").trim().toLowerCase()
+    if(!email) return false
+
+    const dbUser=await getUserFromDb(email)
+    const user=dbUser || (email===SUPER_ADMIN_EMAIL ? {email:SUPER_ADMIN_EMAIL,role:"admin",active:true,area:""} : null)
+    if(!user || user.active===false){
+      clearSession()
+      return false
+    }
+
+    currentUser={email:user.email, area:user.area||""}
+    currentRole=user.role||parsed.role||"operator"
+
+    await db.ref("users_by_email").child(emailKey(email)).update({lastAccessAt:new Date().toISOString()})
+    renderApp()
+    return true
+  }catch(_){
+    clearSession()
+    return false
+  }
+}
 
 const SHEETS_WEBHOOK_URL="https://script.google.com/macros/s/AKfycbzb1jsnEXf2-pPlj4XqXv74IX18DTefCsQ6YIO9AmulRh8_w2-oiX_62ZleSJ587ABP/exec";
 const SHEETS_TOKEN=""; // si en Apps Script pusiste SHARED_TOKEN, pegalo acá
@@ -331,6 +375,7 @@ async function handleLogin(){
 
   currentUser = { email: user.email, area: user.area || "" }
   currentRole = user.role
+  saveSession()
 
   await db.ref("users_by_email")
     .child(emailKey(email))
@@ -345,7 +390,7 @@ async function handleLogin(){
 }
 
 
-function logout(){currentUser=null;currentRole=null;extractedSecret=null;renderLogin()}
+function logout(){currentUser=null;currentRole=null;extractedSecret=null;clearSession();renderLogin()}
 
 function renderApp(){
   const role=currentRole
@@ -1224,6 +1269,7 @@ async function init(){
   }
 
   await ensureSuperAdmin()
+  await restoreSession()
 }
 init()
 </script>
