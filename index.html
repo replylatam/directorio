@@ -128,7 +128,24 @@ textarea{min-height:86px;resize:vertical}
     <div id="secretPreview" class="small" style="margin-top:8px"></div>
   </div>
 </div>
-    
+
+
+<div id="userAreaModal" class="modalBack hidden">
+  <div class="card modal" style="max-width:520px">
+    <div class="inline" style="justify-content:space-between;margin-bottom:8px">
+      <h3 style="margin:0">Cambiar área de usuario</h3>
+      <button class="secondary" onclick="closeUserAreaModal()">Cerrar</button>
+    </div>
+    <p class="small" id="userAreaModalLabel" style="margin-top:0"></p>
+    <label>Área</label>
+    <select id="userAreaModalSelect"></select>
+    <div class="inline" style="justify-content:flex-end">
+      <button onclick="saveUserAreaFromModal()">Guardar área</button>
+      <button class="secondary" onclick="closeUserAreaModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const firebaseConfig={
   apiKey:"AIzaSyBBrsdfpWlrEbxXHTvOzX4X8wXpNagWenA",
@@ -165,6 +182,7 @@ let totpIntervalsById={}
 let modalMode="create"          // create | edit
 let editingClientId=null
 let existingSecret=null         // secret ya guardado en DB (para editar sin re-subir QR)
+let editingUserKeyForArea=null
 
 const SUPER_ADMIN_EMAIL="alan.pereyra@replylatam.com"
 const SUPER_ADMIN_PASSWORD="1234"
@@ -426,24 +444,54 @@ async function createArea(){
   await db.ref("areas").child(key).set({name})
   if(input) input.value=""
   await loadAreaOptions()
+  if(currentRole==="admin") loadUsersAdmin()
   alert("Área creada")
 }
 
-async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
+function normalizeAreaName(value){
+  return String(value||"").trim().toUpperCase()
+}
+
+async function getAreaNames(){
   const snap=await db.ref("areas").once("value")
-  const areas=Object.values(snap.val()||{}).map(a=>String(a.name||"").trim().toUpperCase()).filter(Boolean)
-  const unique=[...new Set(areas)].sort()
+  const raw=snap.val()||{}
+  const names=[]
 
-  const fill=(selectId, selected)=>{
-    const el=document.getElementById(selectId)
-    if(!el) return
-    el.innerHTML='<option value="">Sin área</option>' + unique.map(a=>`<option value="${htmlEscape(a)}">${htmlEscape(a)}</option>`).join("")
-    el.value=(selected||"").toUpperCase()
-    if(el.value!== (selected||"").toUpperCase()) el.value=""
-  }
+  Object.entries(raw).forEach(([key,val])=>{
+    if(typeof val==="string"){
+      const n=normalizeAreaName(val)
+      if(n) names.push(n)
+      return
+    }
 
-  fill("uArea", selectedUserArea)
-  fill("cArea", selectedClientArea)
+    if(val && typeof val==="object"){
+      const fromName=normalizeAreaName(val.name||val.area||val.label)
+      if(fromName){
+        names.push(fromName)
+      }else{
+        const fromKey=normalizeAreaName(key)
+        if(fromKey) names.push(fromKey)
+      }
+    }
+  })
+
+  return [...new Set(names)].sort()
+}
+
+function fillAreaSelect(selectId, areas, selected=""){
+  const el=document.getElementById(selectId)
+  if(!el) return
+  el.innerHTML='<option value="">Sin área</option>' + areas.map(a=>`<option value="${htmlEscape(a)}">${htmlEscape(a)}</option>`).join("")
+  const normalized=normalizeAreaName(selected)
+  el.value=normalized
+  if(el.value!==normalized) el.value=""
+}
+
+async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
+  const areas=await getAreaNames()
+  fillAreaSelect("uArea", areas, selectedUserArea)
+  fillAreaSelect("cArea", areas, selectedClientArea)
+  fillAreaSelect("userAreaModalSelect", areas, selectedUserArea)
 }
 
 function canSeeClientByArea(client){
@@ -897,9 +945,27 @@ function loadUsersAdmin(){
 async function changeUserArea(key){
   const snap=await db.ref("users_by_email").child(key).once("value")
   const user=snap.val()||{}
-  const next=prompt(`Nueva área para ${user.email||"usuario"} (vacío para quitar):`, (user.area||""))
-  if(next===null) return
-  await db.ref("users_by_email").child(key).update({area:next.trim().toUpperCase(),updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  editingUserKeyForArea=key
+
+  const label=document.getElementById("userAreaModalLabel")
+  if(label) label.innerText=`Usuario: ${user.email||"-"}`
+
+  await loadAreaOptions(user.area||"", "")
+  fillAreaSelect("userAreaModalSelect", await getAreaNames(), user.area||"")
+
+  document.getElementById("userAreaModal").classList.remove("hidden")
+}
+
+function closeUserAreaModal(){
+  editingUserKeyForArea=null
+  document.getElementById("userAreaModal").classList.add("hidden")
+}
+
+async function saveUserAreaFromModal(){
+  if(!editingUserKeyForArea) return
+  const next=normalizeAreaName(document.getElementById("userAreaModalSelect")?.value||"")
+  await db.ref("users_by_email").child(editingUserKeyForArea).update({area:next,updatedAt:new Date().toISOString(),updatedBy:currentUser.email})
+  closeUserAreaModal()
   alert("Área actualizada")
 }
 
