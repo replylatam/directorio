@@ -58,6 +58,7 @@ textarea{min-height:86px;resize:vertical}
   word-break:break-word;
 }
 .table th{font-size:12px;color:#cbd5e1;letter-spacing:.3px;text-transform:uppercase;background:rgba(15,23,42,.85);position:sticky;top:0;z-index:2}
+.table.noSticky th{position:static;top:auto;z-index:auto}
 .table tbody tr:hover{background:rgba(30,41,59,.45)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .modalBack{position:fixed;inset:0;background:rgba(2,6,23,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:99}
@@ -378,13 +379,13 @@ function renderApp(){
               <div class="kpi"><div class="label">Último acceso</div><div class="value" style="font-size:14px;margin-top:8px" id="kpiLastAccess">-</div></div>
             </div>
 
-            <div style="margin-top:14px">
+            ${!isConsultorUser() ? `<div style="margin-top:14px">
               <div class="inline" style="justify-content:space-between;align-items:center">
                 <h3 style="margin:0">Actividad reciente</h3>
                 <button class="ghost" onclick="loadDashboard()">Actualizar</button>
               </div>
               <div id="recentActivity" style="margin-top:10px"></div>
-            </div>
+            </div>` : ``}
           </div>
         ` : ``}
       </div>
@@ -392,6 +393,7 @@ function renderApp(){
       ${role==="admin"?`
       <div class="card">
         <h3 style="margin-top:0">Gestión de usuarios</h3>
+        ${isConsultorUser()?`<p class="small">No tenés permiso para crear usuarios.</p>`:`
         <div class="row">
           <div><label>Email</label><input id="uEmail"></div>
           <div><label>Contraseña</label><input id="uPassword" type="text"></div>
@@ -404,7 +406,7 @@ function renderApp(){
         <div class="inline" style="margin-top:6px">
           <input id="newAreaName" placeholder="Nueva área (ej: ACCO)">
           <button class="ghost" onclick="createArea()">Crear área</button>
-        </div>
+        </div>`}
         <div id="usersList" class="small"></div>
       </div>`:"<div></div>"}
     </div>
@@ -432,7 +434,7 @@ function renderApp(){
     loadUsersAdmin()
     loadOperatorsLastAccess()
     loadOperatorAlerts()
-    loadDashboard()
+    if(!isConsultorUser()) loadDashboard()
     updateBulkSelectionInfo()
   }
 }
@@ -509,6 +511,10 @@ async function loadAreaOptions(selectedUserArea="", selectedClientArea=""){
 
 function isAreaScopedAdmin(){
   return currentRole==="admin" && normalizeAreaName(currentUser?.area||"")!==""
+}
+
+function isConsultorUser(){
+  return currentRole==="admin" && normalizeAreaName(currentUser?.area||"")==="CONSULTORIA"
 }
 
 function canAdminSeeArea(areaValue){
@@ -964,13 +970,14 @@ function loadOperatorAlerts(){
     const items=Object.entries(snap.val()||{}).filter(([,a])=>a.status!=='resolved').sort((a,b)=>new Date(b[1].createdAt||0)-new Date(a[1].createdAt||0))
     if(!items.length){container.innerHTML="<p class='small'>Sin alertas abiertas.</p>"; return}
 
-    container.innerHTML=`<div class="tableWrap"><table class="table" style="min-width:760px"><thead><tr><th>Cliente</th><th>Detalle</th><th>Reportado por</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
-      ${items.map(([id,a])=>`<tr><td>${htmlEscape(a.clientName||"-")}</td><td>${htmlEscape(a.message||"-")}</td><td>${htmlEscape(a.reportedBy||"-")}</td><td>${a.createdAt?new Date(a.createdAt).toLocaleString():"-"}</td><td><span class="badge warn">Abierta</span></td><td><button class="ghost" onclick="resolveAlert('${id}')">Marcar resuelta</button></td></tr>`).join("")}
+    container.innerHTML=`<div class="tableWrap"><table class="table noSticky" style="min-width:760px"><thead><tr><th>Cliente</th><th>Detalle</th><th>Reportado por</th><th>Fecha</th><th>Estado</th><th>Acción</th></tr></thead><tbody>
+      ${items.map(([id,a])=>`<tr><td>${htmlEscape(a.clientName||"-")}</td><td>${htmlEscape(a.message||"-")}</td><td>${htmlEscape(a.reportedBy||"-")}</td><td>${a.createdAt?new Date(a.createdAt).toLocaleString():"-"}</td><td><span class="badge warn">Abierta</span></td><td>${isConsultorUser()?'<span class="small">Sin permiso</span>':`<button class="ghost" onclick="resolveAlert('${id}')">Marcar resuelta</button>`}</td></tr>`).join("")}
     </tbody></table></div>`
   })
 }
 
 async function resolveAlert(id){
+  if(isConsultorUser()) return alert("No tenés permiso para cambiar el estado de tickets")
   const alertRef=db.ref("client_alerts").child(id)
   const snap=await alertRef.once("value")
   const alertData=snap.val()||{}
@@ -987,6 +994,7 @@ async function resolveAlert(id){
 }
 
 async function saveUserAccess(){
+  if(isConsultorUser()) return alert("No tenés permiso para crear usuarios")
   const email=document.getElementById("uEmail").value.trim().toLowerCase()
   const password=document.getElementById("uPassword").value.trim()
   const role=document.getElementById("uRole").value
