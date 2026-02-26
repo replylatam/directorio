@@ -415,16 +415,6 @@ function renderApp(){
         <span class="small">${role==="admin"?"Vista admin":"Viendo todos los clientes activos"}</span>
       </div>
       <div class="searchWrap"><input oninput="updateClientSearch(this.value)"></div>
-      ${role==="admin"?`
-      <div class="inline" style="margin-top:10px">
-        <button class="danger" onclick="bulkDeleteClients()">Eliminar seleccionados</button>
-        <button class="secondary" onclick="bulkSetClientsActive(false)">Inactivar seleccionados</button>
-        <button class="ghost" onclick="bulkSetClientsActive(true)">Activar seleccionados</button>
-        <select id="bulkAreaSelect" style="max-width:220px;margin:0"></select>
-        <button class="warn" onclick="bulkAssignArea()">Asignar área</button>
-      </div>
-      <p class="small" id="bulkSelectionInfo" style="margin:8px 0 0">0 clientes seleccionados</p>
-      `:""}
     </div>
 
     <div class="card" id="clientsContainer"></div>
@@ -668,6 +658,14 @@ function loadClients(){
     if(!rows.length){container.innerHTML="<p>No hay resultados para la búsqueda.</p>";return}
 
     container.innerHTML=`
+      ${currentRole==="admin"?`<div class="inline" style="margin-bottom:10px">
+        <button class="danger" onclick="bulkDeleteClients()">Eliminar seleccionados</button>
+        <button class="secondary" onclick="bulkSetClientsActive(false)">Inactivar seleccionados</button>
+        <button class="ghost" onclick="bulkSetClientsActive(true)">Activar seleccionados</button>
+        <select id="bulkAreaSelect" style="max-width:220px;margin:0"></select>
+        <button class="warn" onclick="bulkAssignArea()">Asignar área</button>
+      </div>
+      <p class="small" id="bulkSelectionInfo" style="margin:0 0 10px">0 clientes seleccionados</p>`:""}
       <div class="tableWrap">
         <table class="table">
           <thead><tr>${currentRole==="admin"?"<th><input type=\"checkbox\" onchange=\"toggleSelectAllClients(this.checked)\"></th>":""}<th>Cliente</th><th>Área</th><th>Contraseña</th><th>País</th><th>Notas</th><th>Email</th><th>Fecha carga</th><th>Estado</th><th>TOTP</th><th>Vence</th>${currentRole==="admin"?"<th>Activo</th><th>Acciones</th>":"<th>Acciones</th>"}</tr></thead>
@@ -695,6 +693,7 @@ function loadClients(){
         </table>
       </div>`
 
+    if(currentRole==="admin") loadAreaOptions("", "")
     rows.forEach(({id,c})=>{ if(isOperatorTotpVisible(id)) attachTotpLive(id,c) })
     updateBulkSelectionInfo()
   })
